@@ -32,6 +32,11 @@ allowed-tools: Bash
   /cmux-config add <이름>   AI 추가 (커스텀도 가능)
   /cmux-config remove <이름> AI 제거
 
+  운영:
+  ─────────────────────────────────────────────────────
+  /cmux-stop                오케스트레이션 종료
+  /cmux-watcher-mute        와쳐 알림 토글 (on/off/status)
+
   긴급:
   ─────────────────────────────────────────────────────
   /cmux-pause               전체 일시 중지
