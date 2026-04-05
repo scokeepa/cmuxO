@@ -54,6 +54,10 @@ rm -f /tmp/cmux-vdiff-prev.json /tmp/cmux-pipe-pane-initialized.flag
 
             # 상태 파일이 120초 이상 오래됐으면 멈춘 것 → 강제 재시작
             if [ -f "$STATE_FILE" ]; then
+                # Pause 중이면 staleness 체크 스킵
+                if [ -f /tmp/cmux-paused.flag ]; then
+                    continue
+                fi
                 FILE_AGE=$(( $(date +%s) - $(stat -f %m "$STATE_FILE" 2>/dev/null || echo 0) ))
                 if [ "$FILE_AGE" -gt 180 ]; then
                     echo "[$(date)] WATCHDOG: 상태 파일 ${FILE_AGE}초 미갱신 → 강제 재시작" >> "$LOG_FILE"

@@ -62,6 +62,7 @@ VISION_DIFF_DIR = Path("/tmp/cmux-vdiff")
 VISION_DIFF_PREV = Path("/tmp/cmux-vdiff-prev.json")  # {surface_id: cleaned_text}
 PIPE_PANE_INITIALIZED = Path("/tmp/cmux-pipe-pane-initialized.flag")
 SURFACE_MAP_FILE = Path("/tmp/cmux-surface-map.json")
+PAUSE_FLAG = Path("/tmp/cmux-paused.flag")
 
 # Thresholds
 IDLE_ALERT_SECONDS = 90       # Alert if IDLE for > 90s
@@ -1272,6 +1273,27 @@ def main() -> None:
         iteration = 0
 
         while True:
+            # --- Pause gate ---
+            if PAUSE_FLAG.exists():
+                try:
+                    Path("/tmp/cmux-watcher-state.json").write_text(
+                        json.dumps({
+                            "main_state": "PAUSED",
+                            "has_working_workers": False,
+                            "interval": 0,
+                            "iteration": iteration,
+                            "timestamp": utc_now(),
+                            "paused": True,
+                        }, ensure_ascii=False)
+                    )
+                except Exception:
+                    pass
+                run_cmd(["cmux", "set-status", "watcher", "⏸ PAUSED",
+                         "--icon", "pause", "--color", "#ffaa00"], timeout=3)
+                time.sleep(5)
+                iteration += 1
+                continue
+            # --- End pause gate ---
             report = do_scan()
             if json_output:
                 print(json.dumps(report, ensure_ascii=False))
