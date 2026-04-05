@@ -1142,12 +1142,14 @@ def main() -> None:
                             "role": role_name,
                             "status": surfaces[sf].get("status", "UNKNOWN"),
                             "ai": surfaces[sf].get("ai", "unknown"),
+                            "title": surfaces[sf].get("title", ""),
                         }
                     elif sf:
                         managed_sessions[sf] = {
                             "role": role_name,
                             "status": "NOT_IN_EAGLE",
                             "ai": role_info.get("ai", "unknown"),
+                            "title": "",
                         }
             except Exception:
                 pass
@@ -1228,7 +1230,9 @@ def main() -> None:
             lines.append("  📋 관리 세션:")
             for sf, info in managed.items():
                 status_icon = {"WORKING": "🔵", "IDLE": "⚪", "DONE": "✅", "ERROR": "🔴"}.get(info["status"], "❓")
-                lines.append(f"    {status_icon} s:{sf} ({info['ai']}) [{info['status']}] — {info['role']}")
+                title = info.get("title", "")
+                name = title if title else info["role"]
+                lines.append(f"    {status_icon} {name} [{info['status']}]")
 
         # CRITICAL/HIGH 알림
         for a in (critical + high)[:5]:
