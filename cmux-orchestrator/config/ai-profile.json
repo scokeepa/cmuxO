@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "updated_at": "2026-03-31T13:43:22Z",
+  "profiles": {
+    "codex": {
+      "display_name": "Codex",
+      "cli_command": "codex",
+      "detect_patterns": [
+        "codex",
+        "gpt-",
+        "opencode"
+      ],
+      "traits": {
+        "no_init_required": true,
+        "sandbox": true,
+        "short_prompt": false,
+        "two_phase_send": false
+      },
+      "detected": false
+    },
+    "minimax": {
+      "display_name": "MiniMax",
+      "cli_command": "ccm",
+      "detect_patterns": [
+        "minimax"
+      ],
+      "traits": {
+        "no_init_required": false,
+        "sandbox": false,
+        "short_prompt": false,
+        "two_phase_send": false
+      },
+      "detected": false
+    },
+    "glm": {
+      "display_name": "GLM",
+      "cli_command": "ccg2",
+      "detect_patterns": [
+        "glm",
+        "chatglm"
+      ],
+      "traits": {
+        "no_init_required": false,
+        "sandbox": false,
+        "short_prompt": true,
+        "two_phase_send": false
+      },
+      "detected": false
+    },
+    "gemini": {
+      "display_name": "Gemini",
+      "cli_command": "gemini",
+      "detect_patterns": [
+        "gemini"
+      ],
+      "traits": {
+        "no_init_required": false,
+        "sandbox": false,
+        "short_prompt": false,
+        "two_phase_send": true
+      },
+      "detected": false
+    },
+    "claude": {
+      "display_name": "Claude Code",
+      "cli_command": "claude",
+      "detect_patterns": [
+        "opus",
+        "sonnet",
+        "haiku",
+        "claude"
+      ],
+      "traits": {
+        "no_init_required": false,
+        "sandbox": false,
+        "short_prompt": false,
+        "two_phase_send": false
+      },
+      "detected": true
+    }
+  }
+}

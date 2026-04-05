@@ -1,0 +1,33 @@
+{
+  "metrics": {
+    "stall_count": {
+      "source": "eagle-status.json stats.stalled",
+      "direction": "lower_is_better",
+      "threshold": {"good": 0, "warning": 2, "critical": 5}
+    },
+    "error_count": {
+      "source": "eagle-status.json stats.error",
+      "direction": "lower_is_better",
+      "threshold": {"good": 0, "warning": 1, "critical": 3}
+    },
+    "ended_count": {
+      "source": "eagle-status.json stats.ended",
+      "direction": "lower_is_better",
+      "threshold": {"good": 0, "warning": 1, "critical": 3}
+    },
+    "idle_count": {
+      "source": "eagle-status.json stats.idle",
+      "direction": "lower_is_better",
+      "threshold": {"good": 0, "warning": 2, "critical": 5}
+    },
+    "total_surfaces": {
+      "source": "eagle-status.json stats.total",
+      "direction": "neutral",
+      "threshold": {"good": 0, "warning": 0, "critical": 0}
+    }
+  },
+  "ab_test_rules": {
+    "observation_period_seconds": 600,
+    "simplicity_threshold": {"max_lines_added": 50, "max_files_changed": 3}
+  }
+}
