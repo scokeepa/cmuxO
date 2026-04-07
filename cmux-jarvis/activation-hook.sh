@@ -52,12 +52,12 @@ if "hooks" not in data:
 hooks = data["hooks"]
 
 HOOK_MAP = {
-    "cmux-jarvis-gate.sh": ("PreToolUse", "Edit|Write|Bash", 3),
-    "cmux-settings-backup.sh": ("ConfigChange", None, 10),
-    "jarvis-session-start.sh": ("SessionStart", None, 5),
-    "jarvis-file-changed.sh": ("FileChanged", "cmux-eagle-status.json|cmux-watcher-alerts.json", 5),
-    "jarvis-pre-compact.sh": ("PreCompact", None, 5),
-    "jarvis-post-compact.sh": ("PostCompact", None, 5),
+    "cmux-jarvis-gate.sh": ("PreToolUse", "Edit|Write|Bash", 3000),
+    "cmux-settings-backup.sh": ("ConfigChange", None, 3000),
+    "jarvis-session-start.sh": ("SessionStart", None, 3000),
+    "jarvis-file-changed.sh": ("FileChanged", "cmux-eagle-status.json|cmux-watcher-alerts.json", 3000),
+    "jarvis-pre-compact.sh": ("PreCompact", None, 3000),
+    "jarvis-post-compact.sh": ("PostCompact", None, 3000),
 }
 
 added = 0

@@ -138,30 +138,30 @@ hooks = data["hooks"]
 # Hook 등록 매핑: {파일명: (이벤트, matcher, timeout)}
 HOOK_MAP = {
     # PreToolUse
-    "cmux-init-enforcer.py": ("PreToolUse", "Bash", 3),
-    "cmux-watcher-notify-enforcer.py": ("PreToolUse", "Bash", 3),
-    "cmux-no-stall-enforcer.py": ("PreToolUse", "Bash|Agent", 3),
-    "cmux-gate6-agent-block.sh": ("PreToolUse", "Agent", 5),
-    "cmux-read-guard.sh": ("PreToolUse", "Bash", 5),
-    "cmux-watcher-msg-guard.py": ("PreToolUse", "Bash", 3),
-    "cmux-completion-verifier.py": ("PreToolUse", "Bash", 3),
-    "cmux-workflow-state-machine.py": ("PreToolUse", "Bash|Agent", 3),
+    "cmux-init-enforcer.py": ("PreToolUse", "Bash", 3000),
+    "cmux-watcher-notify-enforcer.py": ("PreToolUse", "Bash", 3000),
+    "cmux-no-stall-enforcer.py": ("PreToolUse", "Bash|Agent", 3000),
+    "cmux-gate6-agent-block.sh": ("PreToolUse", "Agent", 3000),
+    "cmux-read-guard.sh": ("PreToolUse", "Bash", 3000),
+    "cmux-watcher-msg-guard.py": ("PreToolUse", "Bash", 3000),
+    "cmux-completion-verifier.py": ("PreToolUse", "Bash", 3000),
+    "cmux-workflow-state-machine.py": ("PreToolUse", "Bash|Agent", 3000),
     # PostToolUse
-    "cmux-dispatch-notify.sh": ("PostToolUse", "Bash", 3),
-    "cmux-idle-reuse-enforcer.py": ("PostToolUse", "Bash", 3),
-    "cmux-setbuffer-fallback.py": ("PostToolUse", "Bash", 3),
-    "cmux-enforcement-escalator.py": ("PostToolUse", "Bash|Agent", 3),
+    "cmux-dispatch-notify.sh": ("PostToolUse", "Bash", 3000),
+    "cmux-idle-reuse-enforcer.py": ("PostToolUse", "Bash", 3000),
+    "cmux-setbuffer-fallback.py": ("PostToolUse", "Bash", 3000),
+    "cmux-enforcement-escalator.py": ("PostToolUse", "Bash|Agent", 3000),
     # UserPromptSubmit
-    "cmux-idle-reminder.sh": ("UserPromptSubmit", None, 5),
-    "cmux-main-context.sh": ("UserPromptSubmit", None, 10),
+    "cmux-idle-reminder.sh": ("UserPromptSubmit", None, 3000),
+    "cmux-main-context.sh": ("UserPromptSubmit", None, 3000),
     # Stop
-    "cmux-stop-guard.sh": ("Stop", None, 5),
+    "cmux-stop-guard.sh": ("Stop", None, 3000),
     # SessionStart
-    "cmux-model-profile-hook.sh": ("SessionStart", None, 5),
-    "cmux-hook-audit.sh": ("SessionStart", None, 5),
-    "cmux-watcher-session.sh": ("SessionStart", None, 5),
+    "cmux-model-profile-hook.sh": ("SessionStart", None, 3000),
+    "cmux-hook-audit.sh": ("SessionStart", None, 3000),
+    "cmux-watcher-session.sh": ("SessionStart", None, 3000),
     # Watcher hooks
-    "cmux-watcher-activate.sh": ("UserPromptSubmit", None, 5),
+    "cmux-watcher-activate.sh": ("UserPromptSubmit", None, 5000),
 }
 
 added = 0

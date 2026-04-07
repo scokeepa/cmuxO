@@ -172,28 +172,28 @@ changed = False
 # gate-blocker (PreToolUse — 커밋 차단)
 pre = hooks.setdefault('PreToolUse', [])
 if not any('gate-blocker' in json.dumps(e) for e in pre):
-    pre.append({'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': 'bash ${variable_scripts_dir}/gate-blocker.sh', 'timeout': 5}]})
+    pre.append({'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': 'bash ${variable_scripts_dir}/gate-blocker.sh', 'timeout': 3000}]})
     changed = True
     print('  ✅ PreToolUse: gate-blocker.sh (커밋 차단)')
 
 # gate-enforcer (PostToolUse — 상태 경고)
 post = hooks.setdefault('PostToolUse', [])
 if not any('gate-enforcer' in json.dumps(e) for e in post):
-    post.append({'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': 'python3 ${variable_scripts_dir}/gate-enforcer.py --check-surfaces', 'timeout': 8}]})
+    post.append({'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': 'python3 ${variable_scripts_dir}/gate-enforcer.py --check-surfaces', 'timeout': 3000}]})
     changed = True
     print('  ✅ PostToolUse: gate-enforcer.py (상태 경고)')
 
 # cmux-claude-bridge (SessionStart/Stop/Notification)
 ss = hooks.setdefault('SessionStart', [])
 if not any('cmux-claude-bridge' in json.dumps(e) for e in ss):
-    ss.append({'hooks': [{'type': 'command', 'command': 'bash ${variable_scripts_dir}/cmux-claude-bridge.sh session-start', 'timeout': 3}]})
+    ss.append({'hooks': [{'type': 'command', 'command': 'bash ${variable_scripts_dir}/cmux-claude-bridge.sh session-start', 'timeout': 3000}]})
     changed = True
     print('  ✅ SessionStart: cmux-claude-bridge.sh')
 
 # cmux-idle-reminder (UserPromptSubmit)
 ups = hooks.setdefault('UserPromptSubmit', [])
 if not any('cmux-idle-reminder' in json.dumps(e) for e in ups):
-    ups.append({'hooks': [{'type': 'command', 'command': 'bash ${variable_scripts_dir}/cmux-idle-reminder.sh', 'timeout': 5}]})
+    ups.append({'hooks': [{'type': 'command', 'command': 'bash ${variable_scripts_dir}/cmux-idle-reminder.sh', 'timeout': 3000}]})
     changed = True
     print('  ✅ UserPromptSubmit: cmux-idle-reminder.sh')
 
