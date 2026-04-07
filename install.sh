@@ -63,14 +63,78 @@ echo ""
 
 echo "[1/6] 사전 검증..."
 
-# cmux 확인
-if ! command -v cmux >/dev/null 2>&1; then
-  echo "  ✗ cmux가 설치되어 있지 않습니다."
-  echo "    cmux를 먼저 설치해주세요."
-  exit 1
+# cmux / tmux(psmux) 확인 + 자동 설치
+CMUX_MODE=""
+if command -v cmux >/dev/null 2>&1; then
+  CMUX_VER=$(cmux --version 2>/dev/null | head -1)
+  echo "  ✓ cmux: $CMUX_VER"
+  CMUX_MODE="cmux"
+elif command -v tmux >/dev/null 2>&1; then
+  TMUX_VER=$(tmux -V 2>/dev/null)
+  echo "  ✓ tmux: $TMUX_VER (cmux-shim으로 호환 모드 사용)"
+  CMUX_MODE="shim"
+else
+  echo "  ✗ cmux 또는 tmux가 설치되어 있지 않습니다."
+  echo ""
+  case "$OS_TYPE" in
+    macos)
+      echo "  cmux 자동 설치를 시도합니다..."
+      if command -v brew >/dev/null 2>&1; then
+        brew tap manaflow-ai/cmux 2>/dev/null && brew install --cask cmux 2>/dev/null
+        if command -v cmux >/dev/null 2>&1; then
+          echo "  ✓ cmux 설치 완료"
+          CMUX_MODE="cmux"
+        else
+          echo "  ⚠ cmux 설치 실패. tmux로 대체합니다..."
+          brew install tmux 2>/dev/null
+          CMUX_MODE="shim"
+        fi
+      else
+        echo "  Homebrew가 없습니다. 수동 설치해주세요:"
+        echo "    https://cmux.com 또는 brew install tmux"
+        exit 1
+      fi
+      ;;
+    linux)
+      echo "  tmux 자동 설치를 시도합니다..."
+      if command -v apt >/dev/null 2>&1; then
+        sudo apt install -y tmux 2>/dev/null
+      elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y tmux 2>/dev/null
+      elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --noconfirm tmux 2>/dev/null
+      fi
+      if command -v tmux >/dev/null 2>&1; then
+        echo "  ✓ tmux 설치 완료"
+        CMUX_MODE="shim"
+      else
+        echo "  ✗ tmux 자동 설치 실패. 수동 설치해주세요."
+        exit 1
+      fi
+      ;;
+    wsl)
+      echo "  psmux 또는 tmux 자동 설치를 시도합니다..."
+      if command -v winget.exe >/dev/null 2>&1; then
+        winget.exe install psmux 2>/dev/null
+      fi
+      # WSL 내부에서는 tmux도 사용 가능
+      if ! command -v tmux >/dev/null 2>&1; then
+        sudo apt install -y tmux 2>/dev/null
+      fi
+      if command -v tmux >/dev/null 2>&1; then
+        echo "  ✓ tmux 설치 완료 (WSL)"
+        CMUX_MODE="shim"
+      else
+        echo "  ✗ 설치 실패. 수동으로 tmux를 설치해주세요."
+        exit 1
+      fi
+      ;;
+    *)
+      echo "  지원되지 않는 OS입니다."
+      exit 1
+      ;;
+  esac
 fi
-CMUX_VER=$(cmux --version 2>/dev/null | head -1)
-echo "  ✓ cmux: $CMUX_VER"
 
 # python3 확인
 if ! command -v python3 >/dev/null 2>&1; then
@@ -214,6 +278,35 @@ if [ -f "$PROFILE_SCRIPT" ]; then
   python3 "$PROFILE_SCRIPT" --detect 2>/dev/null && echo "  ✓ AI 감지 완료" || echo "  ⚠ AI 감지 스킵 (수동: /cmux-config detect)"
 else
   echo "  ⚠ manage-ai-profile.py 없음 (수동 설정 필요)"
+fi
+
+# ─── cmux-shim 배포 (tmux 모드일 때) ─────────────────
+
+if [ "$CMUX_MODE" = "shim" ]; then
+  echo "[+] cmux-shim 설치 (tmux 호환 모드)..."
+  SHIM_SRC="$SKILLS_DIR/cmux-orchestrator/scripts/cmux-shim.py"
+  SHIM_DIR="$HOME/.local/bin"
+  mkdir -p "$SHIM_DIR"
+  if [ -f "$SHIM_SRC" ]; then
+    chmod +x "$SHIM_SRC"
+    # cmux 래퍼 스크립트 생성 (python3로 shim 호출)
+    cat > "$SHIM_DIR/cmux" << SHIMEOF
+#!/bin/sh
+exec python3 "$SHIM_SRC" "\$@"
+SHIMEOF
+    chmod +x "$SHIM_DIR/cmux"
+    echo "  ✓ cmux-shim → $SHIM_DIR/cmux"
+    # PATH 확인
+    if ! echo "$PATH" | tr ':' '\n' | grep -q "$SHIM_DIR"; then
+      echo ""
+      echo "  ⚠ $SHIM_DIR가 PATH에 없습니다. 셸 설정에 추가하세요:"
+      echo "    export PATH=\"$SHIM_DIR:\$PATH\""
+      echo ""
+    fi
+  else
+    echo "  ⚠ cmux-shim.py를 찾을 수 없습니다."
+  fi
+  echo ""
 fi
 
 echo ""
