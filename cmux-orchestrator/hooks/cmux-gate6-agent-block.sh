@@ -14,6 +14,20 @@ TOOL_NAME=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys.
 # Agent 도구만 검사
 [ "$TOOL_NAME" = "Agent" ] || { echo '{"decision":"allow"}'; exit 0; }
 
+# 팀장(부서) surface는 GATE 6 면제 — Main surface에서만 차단
+# 팀장은 Agent로 탐색/팀원 생성이 필요하므로 차단하면 안 됨
+ROLES_FILE="/tmp/cmux-roles.json"
+CURRENT_SID="${CMUX_SURFACE_ID:-}"
+if [ -n "$CURRENT_SID" ] && [ -f "$ROLES_FILE" ]; then
+    IS_MAIN=$(python3 -c "
+import json, os
+roles = json.load(open('$ROLES_FILE'))
+main_sid = roles.get('main',{}).get('surface','')
+print('yes' if '$CURRENT_SID' == main_sid else 'no')
+" 2>/dev/null)
+    [ "$IS_MAIN" != "yes" ] && { echo '{"decision":"allow"}'; exit 0; }
+fi
+
 AGENT_TYPE=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('tool_input',{}).get('subagent_type',''))" 2>/dev/null)
 
 # 허용 에이전트 (코드리뷰, cmux 전용)
