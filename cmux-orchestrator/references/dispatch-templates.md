@@ -39,6 +39,55 @@ Main의 잘못된 행동:
 
 ---
 
+## 팀장 작업 프로토콜 (MANDATORY — 3단계)
+
+팀장은 작업을 받으면 바로 코딩에 들어가지 않는다. 반드시 **분석 → 판단 → 실행** 순서를 밟는다.
+
+### Step 1: 사전 분석 (30초~1분)
+작업 범위를 빠르게 파악한다:
+- 수정 대상 파일 수
+- 작업 복잡도 (단순 수정 vs 아키텍처 변경)
+- 예상 소요 시간
+
+### Step 2: 팀원 필요 여부 판단 + 선언
+분석 결과를 **먼저 출력**한 뒤 실행 계획을 밝힌다:
+
+```
+[분석 결과]
+- 수정 대상: 3개 파일 (api.go, websocket.go, main.go)
+- 복잡도: 중급 (각 파일 독립 수정 가능)
+- 예상 소요: 파일당 5분
+
+[실행 계획]
+- 팀원 2명 생성 (Sonnet × 2): 각각 1개 파일 담당
+- 팀장(나): websocket.go concurrent write 수정 (가장 복잡)
+- 완료 후 취합하여 DONE 보고
+```
+
+또는:
+
+```
+[분석 결과]
+- 수정 대상: 1개 파일 (Makefile 1줄 수정)
+- 복잡도: 하급
+
+[실행 계획]
+- 팀원 불필요. 직접 수행.
+```
+
+### Step 3: 실행
+- 팀원 필요 시: `cmux new-split right` → `claude --model sonnet/haiku --dangerously-skip-permissions --name worker-N` → 작업 분배
+- 팀원 불필요 시: 직접 수행
+- 완료 후: `DONE: 요약` 출력
+
+### Main이 팀장에게 지시할 때 포함할 문구 (MANDATORY)
+
+Main은 부서에 작업 전달 시 반드시 다음 문구를 포함한다:
+
+> "작업을 받으면 바로 시작하지 말고, 먼저 수정 대상 파일 수 + 복잡도를 분석해. 팀원이 필요하면 cmux new-split right로 직접 생성하고, 난이도별로 --model opus/sonnet/haiku --dangerously-skip-permissions 선택해서 토큰 낭비를 줄여. 분석 결과와 실행 계획을 먼저 출력한 뒤 작업을 시작해."
+
+---
+
 ## 태스크→큐 변환 프로토콜 (MANDATORY)
 
 speckit-tasks가 생성한 태스크를 cmux 작업 큐로 변환하는 구체적 절차:
