@@ -138,6 +138,42 @@ cmux send --surface surface:N "TASK: {작업}"
 cmux send-key --surface surface:N enter
 ```
 
+## Claude Code 한도 해제 후 자동 재시작 (MANDATORY)
+
+Claude Code(Opus/Sonnet/Haiku)가 5시간 한도에 걸리면 세션이 멈춘다.
+**한도가 풀리면 자동으로 작업을 이어서 하도록** Watcher/JARVIS가 관리한다.
+
+### 감지 패턴
+eagle 스캔에서 다음 패턴 감지:
+- snippet에 `"rate limit"`, `"Usage limit"`, `"token limit"` 포함
+- 상태가 IDLE이지만 DONE 미출력 (작업 중 한도 걸림)
+- `"5 hour"`, `"limit will reset"` 등 리셋 메시지
+
+### 대응 프로토콜
+
+```
+1. 감지 즉시: 해당 surface를 RATE_LIMITED 상태로 마킹
+2. 리셋 시간 계산 (메시지에서 추출 또는 5시간 후 추정)
+3. 리셋 시간 도래 시: Watcher가 해당 surface에 재시작 명령 전송
+
+   cmux send --surface surface:N "이전 작업을 이어서 수행해. 한도가 풀렸음."
+   cmux send-key --surface surface:N Enter
+
+4. 재시작 확인: read-screen으로 작업 재개 여부 확인
+5. 재개 실패 시: /new → 작업 재지시
+```
+
+### Watcher/JARVIS 역할 분담
+- **Watcher**: eagle 스캔에서 rate limit 감지 → Main/JARVIS에 보고
+- **JARVIS**: 리셋 시간 추적 → 리셋 시 재시작 명령 전송 또는 Watcher에 위임
+- **Main**: 한도 걸린 surface의 미완료 작업을 다른 surface에 재배정할지 판단
+
+### 사용자 알림
+한도 감지 시 사용자에게 알림:
+```bash
+cmux notify --title "한도 감지" --body "surface:N 한도 걸림. 리셋 예상: HH:MM KST. 자동 재시작 예약됨."
+```
+
 ## 관련 레퍼런스
 
 - `references/error-recovery.md` — 일반 에러 복구 프로토콜
