@@ -27,21 +27,45 @@ IDLE_COUNT=0
 SCAN_FILE="/tmp/cmux-surface-scan.json"
 EAGLE_FILE="/tmp/cmux-eagle-status.json"
 
+# 컨트롤 타워 역할(main/watcher/jarvis) surface는 IDLE 카운트에서 제외
+ROLES_FILE="/tmp/cmux-roles.json"
+
 if [ -f "$SCAN_FILE" ]; then
     IDLE_COUNT=$(python3 -c "
 import json, os, time
 f = '$SCAN_FILE'
+rf = '$ROLES_FILE'
 if os.path.exists(f) and (time.time() - os.path.getmtime(f)) < 300:
     d = json.load(open(f))
-    print(sum(1 for s in d.get('surfaces',{}).values() if s.get('status') == 'IDLE'))
+    # 컨트롤 타워 역할 surface 제외
+    excluded = set()
+    if os.path.exists(rf):
+        try:
+            roles = json.load(open(rf))
+            for role_data in roles.values():
+                s = role_data.get('surface','').replace('surface:','')
+                if s: excluded.add(s)
+        except: pass
+    count = sum(1 for sid, s in d.get('surfaces',{}).items() if s.get('status') == 'IDLE' and sid not in excluded)
+    print(count)
 else:
     print(0)
 " 2>/dev/null)
 elif [ -f "$EAGLE_FILE" ]; then
     IDLE_COUNT=$(python3 -c "
-import json
+import json, os
 d = json.load(open('$EAGLE_FILE'))
-print(d.get('stats',{}).get('idle',0))
+rf = '$ROLES_FILE'
+excluded = set()
+if os.path.exists(rf):
+    try:
+        roles = json.load(open(rf))
+        for role_data in roles.values():
+            s = role_data.get('surface','').replace('surface:','')
+            if s: excluded.add(s)
+    except: pass
+idle_surfs = [sid for sid in d.get('idle_surfaces','').split() if sid and sid not in excluded]
+print(len(idle_surfs))
 " 2>/dev/null)
 fi
 
