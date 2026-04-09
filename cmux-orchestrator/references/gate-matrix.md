@@ -5,6 +5,7 @@
 | 0 | No proceed before collection complete | cmux-completion-verifier.py | PreToolUse:Bash | L0 BLOCK |
 | 2 | Code review requires Sonnet | (SKILL.md policy) | - | L3 Policy |
 | 6 | IDLE surface exists -> Agent forbidden | cmux-gate6-agent-block.sh | PreToolUse:Agent | L0 BLOCK |
+| 7 | IDLE worker exists -> Main direct work forbidden | cmux-gate7-main-delegate.py | PreToolUse:Read\|Edit\|Grep\|Glob\|Write | L0 BLOCK |
 | CT | Control tower close forbidden | cmux-control-tower-guard.py | PreToolUse:Bash | L0 BLOCK |
 | INIT | /new init required before dispatch | cmux-init-enforcer.py | PreToolUse:Bash | L0 BLOCK |
 | NOTIFY | Watcher must be notified after dispatch | cmux-watcher-notify-enforcer.py | PreToolUse:Bash | L0 BLOCK |
