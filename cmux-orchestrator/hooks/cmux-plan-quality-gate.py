@@ -6,7 +6,7 @@
 검증 기준:
 1. 플랜 파일이 존재해야 함 (없으면 BLOCK)
 2. 5관점 순환검증 섹션 헤더(### N. 관점명) + 최소 내용(30자) 필수
-3. 시뮬레이션 결과 섹션에 verdict(PASS/FAIL) 포함 필수
+3. 시뮬레이션 결과 섹션에 ALL PASS 필수 (FAIL 존재 시 BLOCK)
 """
 import json
 import os
@@ -27,7 +27,7 @@ VERIFICATION_SECTIONS = [
 
 # 시뮬레이션 결과 섹션 헤더
 SIMULATION_HEADER = re.compile(r"^##\s+.*시뮬레이션 결과", re.MULTILINE)
-# verdict 패턴: ALL PASS 또는 PASS만 통과. FAIL은 block.
+# verdict 패턴: ALL PASS만 통과. FAIL 또는 verdict 없음은 block.
 PASS_VERDICT = re.compile(r"\bALL PASS\b")
 FAIL_VERDICT = re.compile(r"\bFAIL\b")
 
