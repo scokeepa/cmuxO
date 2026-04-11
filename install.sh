@@ -229,7 +229,7 @@ for f in "$SKILLS_DIR/cmux-watcher/hooks/"*.sh "$SKILLS_DIR/cmux-watcher/scripts
 done
 
 # jarvis hooks + scripts
-for f in "$SKILLS_DIR/cmux-jarvis/hooks/"*.sh "$SKILLS_DIR/cmux-jarvis/scripts/"*.sh; do
+for f in "$SKILLS_DIR/cmux-jarvis/hooks/"*.sh "$SKILLS_DIR/cmux-jarvis/scripts/"*.sh "$SKILLS_DIR/cmux-jarvis/scripts/"*.py; do
   [ -f "$f" ] && chmod +x "$f"
 done
 for f in "$SKILLS_DIR/cmux-jarvis/scripts/verify-plugins/"*.sh; do
