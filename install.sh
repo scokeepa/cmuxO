@@ -144,6 +144,24 @@ fi
 PY_VER=$(python3 --version 2>/dev/null)
 echo "  ✓ $PY_VER"
 
+# chromadb 설치 (Mentor Lane 필수)
+if python3 -c "import chromadb" 2>/dev/null; then
+  CHROMA_VER=$(python3 -c "import chromadb; print(chromadb.__version__)" 2>/dev/null)
+  echo "  ✓ chromadb: $CHROMA_VER"
+else
+  echo "  chromadb 설치 중..."
+  pip3 install chromadb --quiet 2>/dev/null
+  if python3 -c "import chromadb" 2>/dev/null; then
+    CHROMA_VER=$(python3 -c "import chromadb; print(chromadb.__version__)" 2>/dev/null)
+    echo "  ✓ chromadb: $CHROMA_VER (설치 완료)"
+  else
+    echo "  ⚠ chromadb 설치 실패. Mentor Lane 기능 제한됨. 수동 설치: pip3 install chromadb"
+  fi
+fi
+
+# ChromaDB telemetry 비활성화 (posthog warning 제거)
+export ANONYMIZED_TELEMETRY=False
+
 # Claude Code 확인 (경고만)
 if ! command -v claude >/dev/null 2>&1; then
   echo "  ⚠ Claude Code CLI를 찾을 수 없습니다 (설치 후 사용 가능)"

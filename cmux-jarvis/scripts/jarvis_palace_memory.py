@@ -23,6 +23,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 import chromadb
 
 PALACE_PATH = os.path.expanduser("~/.cmux-jarvis-palace")

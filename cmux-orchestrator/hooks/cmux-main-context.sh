@@ -88,6 +88,7 @@ try:
         if os.path.exists(identity_file):
             l0 = open(identity_file).read().strip()
 
+        os.environ.setdefault('ANONYMIZED_TELEMETRY', 'False')
         import chromadb as _cdb
         _client = _cdb.PersistentClient(path=palace_path)
         try:
