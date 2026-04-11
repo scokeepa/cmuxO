@@ -428,8 +428,13 @@ cmux-orchestrator-watcher-pack/           183 files
 
 ### 2026-04-11
 
+- **Orchestrator SKILL.md rewrite** -- Boss operational directives (empty 11-line shell -> full 200+ line guide)
+- **Department = workspace structure** -- Department = sidebar tab (workspace), Team Lead = lead surface (Claude Code), Workers = panes within same workspace created by Team Lead
+- **Team Lead Phase 1-2-3 protocol** -- Verify -> Plan -> Execute+Verify before dispatching to workers
+- **Plan Quality Gate 3-phase enforcement** -- Hook blocks ExitPlanMode unless: [Verification] 5-point sections with verdicts + [Refinement] judgment recorded + [Simulation] TC results with ALL PASS
+- **LECEIPTS rules per role** -- Boss (top principles + scope), Team Lead (full leceipts + 5-section DONE), Worker (simplified), JARVIS (leceipts + Iron Laws priority)
+- **Architecture section enhanced** -- State machine diagram, data flow, hook enforcement layer visualization
 - **LECEIPTS Gate** -- 5-section report + diff hash binding enforced before every `git commit`
-- **Plan Quality Gate** -- 5-point circular verification + simulation required before ExitPlanMode
 - **`is_git_commit()` hardening** -- Detects `git -C .`, `--work-tree`, `--git-dir` variants
 - **`has_success` validation** -- At least one passing verification required (no all-failure reports)
 - **Watcher guard reorder** -- Complete no-op when orchestration disabled (role marker included)
