@@ -50,44 +50,126 @@ After:   You --> Boss --> 3 Workers in parallel .... 17 min  (-66%)
 
 ## Architecture
 
+### System Overview
+
 ```mermaid
 graph TB
-    User["CEO (You)"]
-    
-    subgraph CT["Control Tower"]
-        Main["Boss (Main/COO)\nDispatch + Collect + Commit"]
-        Watcher["Watcher\nReal-time Monitoring"]
-        Jarvis["JARVIS\nSelf-evolving Config Engine"]
+    User["<b>CEO (You)</b><br/>Project owner"]
+
+    subgraph CT["Control Tower &nbsp;(protected — cannot be closed)"]
+        direction LR
+        Main["<b>Boss</b> (Main/COO)<br/>Dispatch + Collect + Commit"]
+        Watcher["<b>Watcher</b><br/>4-layer monitoring<br/>20s scan cycle"]
+        Jarvis["<b>JARVIS</b><br/>Self-evolving config<br/>Iron Laws enforced"]
     end
-    
-    subgraph D1["Dept 1: Frontend"]
-        TL1["Lead (Codex)"]
+
+    subgraph D1["Department 1 &nbsp;(e.g. Frontend)"]
+        TL1["<b>Lead</b> (Codex)"]
         W1["Worker (GLM)"]
         W2["Worker (MiniMax)"]
     end
-    
-    subgraph D2["Dept 2: Backend"]
-        TL2["Lead (Claude)"]
+
+    subgraph D2["Department 2 &nbsp;(e.g. Backend)"]
+        TL2["<b>Lead</b> (Claude)"]
         W3["Worker (Codex)"]
     end
-    
-    User <-->|"config evolution"| Jarvis
+
+    User <-->|"config evolution<br/>approve / reject"| Jarvis
     User -->|"project task"| Main
-    Main -->|"dispatch"| TL1
-    Main -->|"dispatch"| TL2
-    TL1 --> W1 & W2
-    TL2 --> W3
-    Jarvis -.->|"propagate"| Main & Watcher
-    Watcher -->|"status report"| Main
-    Watcher -.->|"monitor"| D1 & D2
+    Main -->|"cmux send<br/>(dispatch)"| TL1 & TL2
+    TL1 -->|"sub-task"| W1 & W2
+    TL2 -->|"sub-task"| W3
+    Jarvis -.->|"policy propagate"| Main & Watcher
+    Watcher -->|"status report<br/>(IDLE/ERROR/STALL)"| Main
+    Watcher -.->|"Eagle + OCR<br/>+ VisionDiff<br/>+ Pipe-pane"| D1 & D2
+
+    style CT fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#e0e7ff
+    style D1 fill:#1a2e05,stroke:#65a30d,stroke-width:1px,color:#ecfccb
+    style D2 fill:#1a2e05,stroke:#65a30d,stroke-width:1px,color:#ecfccb
 ```
 
-<table>
-<tr><th>Layer</th><th>Components</th><th>Role</th></tr>
-<tr><td><b>CEO Staff</b></td><td>JARVIS</td><td>Direct user liaison. Config evolution + policy changes</td></tr>
-<tr><td><b>Control Tower</b></td><td>Boss + Watcher</td><td>Task orchestration + real-time surveillance</td></tr>
-<tr><td><b>Departments</b></td><td>Lead + N Workers</td><td>Autonomous execution with model-appropriate assignments</td></tr>
-</table>
+### Three-Layer Hierarchy
+
+| Layer | Components | Responsibility | Communication |
+|-------|-----------|---------------|---------------|
+| **CEO Staff** | JARVIS | Direct user liaison. Analyzes metrics, proposes config evolution, propagates policy to all layers | Bidirectional with User. Push to Boss/Watcher |
+| **Control Tower** | Boss + Watcher | Boss: task decomposition, dispatch, collection, code review, commit. Watcher: continuous surveillance | Boss <-> Watcher via status reports. Boss -> Departments via `cmux send` |
+| **Departments** | Lead + N Workers | Lead autonomously manages workers, selects models by difficulty. Workers execute independently in isolated tmux panes | Lead -> Workers via sub-task dispatch. Results bubble up to Boss |
+
+### Workflow State Machine
+
+Every orchestration round follows a strict state machine enforced by `cmux-workflow-state-machine.py`:
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> DISPATCH: Boss sends task via cmux send
+    DISPATCH --> COLLECT: All workers report DONE
+    COLLECT --> VERIFY: Boss runs code review (Sonnet agent)
+    VERIFY --> COMMIT: Review passes + LECEIPTS report valid
+    COMMIT --> IDLE: git commit + push
+    
+    DISPATCH --> DISPATCH: Additional workers dispatched
+    COLLECT --> DISPATCH: Worker needs rework
+    VERIFY --> COLLECT: Review rejects -- rework needed
+    COMMIT --> VERIFY: Commit gate blocks (missing verification)
+```
+
+### Data Flow & Communication
+
+```
++------------------+     cmux send      +-------------------+
+|                  | -----------------> |                   |
+|   Boss (Main)    |                    |  Worker tmux pane |
+|                  | <----------------- |                   |
++--------+---------+   capture-pane     +-------------------+
+         |                                      ^
+         | status report                        | Eagle scan
+         |                                      | OCR capture
++--------+---------+                            | VisionDiff
+|                  | ----- 4-layer scan --------+
+|     Watcher      |
+|                  | --- staleness check (180s) ---> auto-restart
++--------+---------+
+         |
+         | (if 3+ repeated failures)
+         v
++------------------+     propose      +--------+
+|                  | --------------> |        |
+|     JARVIS       |                 |  User  |
+|                  | <-------------- |        |
++------------------+  approve/reject +--------+
+         |
+         | (on approve)
+         v
+    Backup --> Implement --> Verify --> Apply or Rollback
+```
+
+### Hook Enforcement Layer
+
+Hooks form an invisible governance layer that physically prevents protocol violations:
+
+```
+  Tool Call (e.g. git commit)
+       |
+       v
+  +--------------------------+
+  | PreToolUse Hook Chain    |
+  |                          |
+  |  LECEIPTS gate ----+     |    Block: no 5-section report
+  |  Completion gate --+     |    Block: uncollected results
+  |  Workflow SM ------+---> |    Block: wrong state
+  |  Plan QG ----------+     |    Block: no verification
+  |  CT guard ---------+     |    Block: closing control tower
+  |                          |
+  +--------------------------+
+       |
+       | All gates pass
+       v
+  Tool executes normally
+```
+
+> **Key design principle:** All 30 hooks are **dormant** until `/cmux-start` activates orchestration mode (`/tmp/cmux-orch-enabled`). In normal Claude Code usage, zero interference.
 
 ---
 
