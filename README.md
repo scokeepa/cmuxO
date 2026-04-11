@@ -568,6 +568,27 @@ cmux-orchestrator-watcher-pack/           216 files
 
 ---
 
+## Referenced Open Source
+
+This project incorporates patterns and techniques from the following MIT-licensed repositories:
+
+| Repository | License | What we adopted | Where applied |
+|-----------|---------|----------------|---------------|
+| [milla-jovovich/mempalace](https://github.com/milla-jovovich/mempalace) | MIT | `extract_drawers_from_sqlite()` — raw SQL drawer extraction bypassing ChromaDB API | `jarvis_palace_memory.py` `_extract_drawers_from_sqlite()` |
+| | | `detect_chromadb_version()` — SQLite schema inspection for 0.5.x/0.6.x/1.x | `jarvis_palace_memory.py` `_detect_chromadb_version()` |
+| | | Temp palace + `shutil.move` swap pattern for safe restore | `jarvis_palace_memory.py` `cmd_restore()` |
+| | | `ORT_DISABLE_COREML=1` on Apple Silicon (ONNX CoreML segfault fix) | All 5 mentor scripts + `tests/conftest.py` |
+| | | Posthog telemetry logger suppression (`logging.CRITICAL`) | All 5 mentor scripts + `tests/conftest.py` |
+| | | Module-level HOME isolation in test conftest | `tests/conftest.py` env setup pattern |
+| | | Palace directory `chmod 0o700` | `jarvis_palace_memory.py` `_get_collection()` |
+| | | Input sanitization (`sanitize_name`, `sanitize_content`) | `mentor_redactor.py` |
+| | | Wing/room metadata structure for ChromaDB collections | Palace memory wing architecture |
+| [scokeepa/mempalace](https://github.com/scokeepa/mempalace) (feat/backup-export-import-v2) | MIT | Export/import JSON format with dedup + version validation | `jarvis_palace_memory.py` `cmd_export()` / `cmd_import()` |
+| | | `_validate_backup()` SQLite `PRAGMA integrity_check` pattern | `jarvis_palace_memory.py` `cmd_backup()` |
+| | | Timestamped backup + retention policy | `jarvis_palace_memory.py` `cmd_backup()` |
+
+---
+
 ## Changelog
 
 See [docs/CHANGELOG.md](docs/CHANGELOG.md) for full version history.
