@@ -1,6 +1,6 @@
 {
   "created_at": "2026-03-18T16:55:00Z",
-  "updated_at": "2026-04-05T06:36:13Z",
+  "updated_at": "2026-04-09T12:59:18Z",
   "presets": {
     "codex": {
       "start": "codex",
@@ -118,7 +118,7 @@
       "workspace": null
     },
     "3": {
-      "ai": "Codex",
+      "ai": "MiniMax",
       "start_cmd": "ccm",
       "quit_cmd": "/exit",
       "reset_cmd": "/clear",
