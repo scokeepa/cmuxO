@@ -348,7 +348,7 @@ Runs on macOS, Linux, and WSL. OS-specific commands are abstracted through `cmux
 
 ## JARVIS Mentor Lane: AI Collaboration Harness Improvement
 
-Beyond self-evolving config, JARVIS now includes a **Mentor Lane** that observes your instruction quality and provides non-blocking coaching hints.
+Beyond self-evolving config, JARVIS now includes a **Mentor Lane** powered by **mempalace ChromaDB** that observes your instruction quality, provides non-blocking coaching hints, and enables **semantic search** across all mentor signals.
 
 ### 6-Axis Skill Dimensions
 
@@ -400,8 +400,9 @@ Measures AI collaboration effectiveness across 6 independent axes (adapted from 
 |---------|-------------|
 | Raw capture **OFF** | Only derived signals stored; raw conversation opt-in only |
 | Auto-redaction | API keys, passwords, tokens stripped before storage |
-| 90-day retention | Signals archived after 90 days; raw drawers 30-day default |
-| Local-only | No network transmission; all data in `~/.claude/cmux-jarvis/mentor/` |
+| 90-day retention | Signals pruned after 90 days via ChromaDB delete |
+| Local-only | No network transmission; all data in `~/.cmux-jarvis-palace/` |
+| Semantic search | ChromaDB + all-MiniLM-L6-v2 embedding (ONNX, local) |
 
 ### Nudge/Escalation (L1 Implemented)
 
@@ -477,6 +478,8 @@ With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
 | cmux 0.62+ | `cmux --version` | Required |
 | Claude Code 2.1+ | `claude --version` | Required |
 | Python 3.9+ | `python3 --version` | Required |
+| chromadb | `pip3 install chromadb` | Required (Mentor Lane) |
+| mempalace | `pip3 install mempalace` | Optional (advanced palace features) |
 
 ### Install
 

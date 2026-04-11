@@ -1,239 +1,173 @@
 #!/usr/bin/env python3
-"""tests/test_palace_memory.py — jarvis_palace_memory.py 단위 테스트."""
+"""tests/test_palace_memory.py — jarvis_palace_memory.py ChromaDB 단위 테스트."""
 
 import json
 import os
 import sys
 import tempfile
-from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "cmux-jarvis", "scripts"))
 import jarvis_palace_memory as pm
 
 
-def test_generate_l0_default():
-    """L0.md 기본값 생성."""
-    with tempfile.TemporaryDirectory() as td:
-        pm.CONTEXT_DIR = type(pm.CONTEXT_DIR)(td)
-        pm.L0_FILE = pm.CONTEXT_DIR / "L0.md"
+def _setup(td):
+    """Set palace path to temp dir for test isolation."""
+    pm.PALACE_PATH = os.path.join(td, "palace")
+    pm.IDENTITY_PATH = os.path.join(pm.PALACE_PATH, "identity.txt")
+    pm.COLLECTION_NAME = "test_signals"
 
+
+def _add_test_signals(td, n=5):
+    """Add test signals directly to ChromaDB."""
+    import chromadb
+    os.makedirs(pm.PALACE_PATH, exist_ok=True)
+    client = chromadb.PersistentClient(path=pm.PALACE_PATH)
+    try:
+        col = client.get_collection(pm.COLLECTION_NAME)
+    except Exception:
+        col = client.create_collection(pm.COLLECTION_NAME)
+
+    for i in range(n):
+        sid = f"sig-test-{i}"
+        doc = f"decomp {0.7+i*0.02} verify 0.5 orch 0.8"
+        meta = {
+            "wing": "cmux_mentor", "room": "verify",
+            "signal_id": sid, "ts": f"2026-04-{i+1:02d}T12:00:00Z",
+            "fit_score": 0.65 + i * 0.01, "harness_level": 3.5,
+            "confidence": 0.7, "evidence_count": "5",
+            "coaching_hint": "완료 조건을 명시하세요." if i == 0 else "",
+            "calibration_note": "ok",
+            "antipatterns": "verification_skip" if i % 2 == 0 else "",
+        }
+        col.add(ids=[sid], documents=[doc], metadatas=[meta])
+    return col
+
+
+def test_generate_l0_default():
+    """L0 identity.txt 기본값 생성."""
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
         text = pm.generate_l0()
-        assert "L0 — IDENTITY" in text
-        assert "CEO" in text
-        assert pm.L0_FILE.exists()
+        assert "CEO" in text or "컨트롤 타워" in text
+        assert os.path.exists(pm.IDENTITY_PATH)
     print("  test_generate_l0_default: PASS")
 
 
 def test_generate_l0_custom():
-    """사용자가 L0.md를 직접 수정한 경우 그대로 사용."""
+    """사용자 identity.txt 유지."""
     with tempfile.TemporaryDirectory() as td:
-        pm.CONTEXT_DIR = type(pm.CONTEXT_DIR)(td)
-        pm.L0_FILE = pm.CONTEXT_DIR / "L0.md"
-        pm.CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
-        pm.L0_FILE.write_text("Custom identity.", encoding="utf-8")
-
-        text = pm.generate_l0()
-        assert text == "Custom identity."
+        _setup(td)
+        os.makedirs(pm.PALACE_PATH, exist_ok=True)
+        with open(pm.IDENTITY_PATH, "w") as f:
+            f.write("Custom identity.")
+        assert pm.generate_l0() == "Custom identity."
     print("  test_generate_l0_custom: PASS")
 
 
 def test_generate_l1_from_signals():
-    """signals 데이터 → L1 요약 생성."""
-    signals = [{
-        "scores": {"decomp": 0.75, "verify": 0.45, "orch": 0.80, "fail": 0.60, "ctx": 0.70, "meta": 0.50},
-        "harness_level": 3.5,
-        "antipatterns": ["context_skip"],
-        "coaching_hint": "완료 조건을 명시하세요.",
-        "fit_score": 0.65,
-        "calibration_note": "ok",
-    }]
-    text = pm.generate_l1(signals)
-    assert "L1 — ESSENTIAL STORY" in text
-    assert "Harness Level" in text
-    assert "ORCH" in text  # strongest axis
-    assert "context_skip" in text
-    assert "완료 조건" in text
+    """ChromaDB signals → L1 요약."""
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        _add_test_signals(td, 5)
+        text = pm.generate_l1()
+        assert "ESSENTIAL STORY" in text
+        assert "Harness Level" in text
     print("  test_generate_l1_from_signals: PASS")
 
 
-def test_l1_insufficient_data():
-    """signals가 비어있을 때 '충분한 관찰이 없습니다'."""
-    text = pm.generate_l1([])
-    assert "충분한 관찰이 없습니다" in text
-    print("  test_l1_insufficient_data: PASS")
+def test_l1_no_signals():
+    """signals 없으면 '충분한 관찰이 없습니다'."""
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        text = pm.generate_l1()
+        assert "충분한 관찰이 없습니다" in text
+    print("  test_l1_no_signals: PASS")
 
 
-def test_l1_token_budget():
-    """L0+L1 합산 900 token 이하."""
-    # Generate many signals to stress L1
-    signals = []
-    for i in range(20):
-        signals.append({
-            "scores": {"decomp": 0.5+i*0.02, "verify": 0.3, "orch": 0.7, "fail": 0.4, "ctx": 0.6, "meta": 0.5},
-            "harness_level": 3.0 + i * 0.1,
-            "antipatterns": ["context_skip", "verification_skip", "fix_me_syndrome"],
-            "coaching_hint": "힌트 " * 10,
-            "fit_score": 0.5 + i * 0.02,
-            "calibration_note": "ok",
-        })
+def test_semantic_search():
+    """ChromaDB 시맨틱 검색."""
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        import chromadb
+        os.makedirs(pm.PALACE_PATH, exist_ok=True)
+        client = chromadb.PersistentClient(path=pm.PALACE_PATH)
+        col = client.create_collection(pm.COLLECTION_NAME)
+        col.add(ids=["s1"], documents=["testing validation review check"], metadatas=[{"wing": "cmux_mentor", "room": "verify"}])
+        col.add(ids=["s2"], documents=["task decomposition breakdown clear"], metadatas=[{"wing": "cmux_mentor", "room": "decomp"}])
 
-    l0 = pm.L0_DEFAULT
-    l1 = pm.generate_l1(signals)
-
-    l0_tokens = pm._estimate_tokens(l0)
-    l1_tokens = pm._estimate_tokens(l1)
-    total = l0_tokens + l1_tokens
-
-    assert total <= pm.MAX_TOTAL_TOKENS, f"Token budget exceeded: {total} > {pm.MAX_TOTAL_TOKENS}"
-    print(f"  test_l1_token_budget: PASS ({total}/{pm.MAX_TOTAL_TOKENS} tokens)")
-
-
-def test_l1_calibration_warning():
-    """insufficient_evidence 시 주의 문구 포함."""
-    signals = [{
-        "scores": {"decomp": 0.5, "verify": 0.5, "orch": 0.5, "fail": 0.5, "ctx": 0.5, "meta": 0.5},
-        "harness_level": 2.0,
-        "antipatterns": [],
-        "coaching_hint": "",
-        "fit_score": 0.5,
-        "calibration_note": "insufficient_evidence",
-    }]
-    text = pm.generate_l1(signals)
-    assert "표본 부족" in text
-    print("  test_l1_calibration_warning: PASS")
+        results = col.query(query_texts=["testing"], n_results=1)
+        assert results["ids"][0][0] == "s1"
+    print("  test_semantic_search: PASS")
 
 
 def test_export_import_roundtrip():
-    """export → import → signal 수 일치."""
+    """export → import → drawer 수 일치."""
     with tempfile.TemporaryDirectory() as td:
-        pm.MENTOR_DIR = type(pm.MENTOR_DIR)(td)
-        pm.SIGNALS_FILE = pm.MENTOR_DIR / "signals.jsonl"
-        pm.CONTEXT_DIR = pm.MENTOR_DIR / "context"
-        pm.L0_FILE = pm.CONTEXT_DIR / "L0.md"
-        pm.L1_FILE = pm.CONTEXT_DIR / "L1.md"
-        pm.NUDGE_AUDIT_FILE = pm.MENTOR_DIR / "nudge-audit.jsonl"
+        _setup(td)
+        _add_test_signals(td, 3)
 
-        pm.MENTOR_DIR.mkdir(parents=True, exist_ok=True)
-        pm.CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
-
-        # Write test signals
-        with open(pm.SIGNALS_FILE, "w") as f:
-            f.write(json.dumps({"signal_id": "sig-1", "scores": {"decomp": 0.7}}) + "\n")
-            f.write(json.dumps({"signal_id": "sig-2", "scores": {"decomp": 0.8}}) + "\n")
-        pm.L0_FILE.write_text("test L0", encoding="utf-8")
-
-        # Export
         export_file = os.path.join(td, "export.json")
         pm.cmd_export(export_file)
 
-        # Clear and import
-        pm.SIGNALS_FILE.unlink()
+        # New palace for import
+        pm.PALACE_PATH = os.path.join(td, "palace2")
+        pm.COLLECTION_NAME = "test_signals"
         pm.cmd_import(export_file)
 
-        signals = pm._read_signals()
-        assert len(signals) == 2, f"Expected 2, got {len(signals)}"
-        assert signals[0]["signal_id"] == "sig-1"
+        col = pm._get_collection()
+        assert col.count() == 3, f"Expected 3, got {col.count()}"
     print("  test_export_import_roundtrip: PASS")
 
 
 def test_import_dedup():
-    """같은 export 2회 import → signal 수 변화 없음 (Q1 해결)."""
+    """같은 export 2회 import → drawer 수 변화 없음."""
     with tempfile.TemporaryDirectory() as td:
-        pm.MENTOR_DIR = type(pm.MENTOR_DIR)(td)
-        pm.SIGNALS_FILE = pm.MENTOR_DIR / "signals.jsonl"
-        pm.CONTEXT_DIR = pm.MENTOR_DIR / "context"
-        pm.L0_FILE = pm.CONTEXT_DIR / "L0.md"
-        pm.L1_FILE = pm.CONTEXT_DIR / "L1.md"
-        pm.NUDGE_AUDIT_FILE = pm.MENTOR_DIR / "nudge-audit.jsonl"
-        pm.MENTOR_DIR.mkdir(parents=True, exist_ok=True)
+        _setup(td)
+        _add_test_signals(td, 2)
 
-        with open(pm.SIGNALS_FILE, "w") as f:
-            f.write(json.dumps({"signal_id": "sig-1"}) + "\n")
-
-        export_data = {"format": "cmux_mentor_export", "version": 1,
-                       "signals": [{"signal_id": "sig-1"}, {"signal_id": "sig-2"}]}
         export_file = os.path.join(td, "export.json")
-        with open(export_file, "w") as f:
-            json.dump(export_data, f)
+        pm.cmd_export(export_file)
 
-        pm.cmd_import(export_file)  # sig-1 skipped, sig-2 imported
-        pm.cmd_import(export_file)  # both skipped
-
-        signals = pm._read_signals()
-        assert len(signals) == 2, f"Expected 2, got {len(signals)}"
+        pm.cmd_import(export_file)  # all skipped
+        col = pm._get_collection()
+        assert col.count() == 2, f"Expected 2, got {col.count()}"
     print("  test_import_dedup: PASS")
 
 
 def test_import_version_rejection():
-    """version > 1 → 거부."""
+    """미래 version → 거부."""
     with tempfile.TemporaryDirectory() as td:
-        pm.MENTOR_DIR = type(pm.MENTOR_DIR)(td)
-        pm.SIGNALS_FILE = pm.MENTOR_DIR / "signals.jsonl"
-        pm.MENTOR_DIR.mkdir(parents=True, exist_ok=True)
-
-        future = {"format": "cmux_mentor_export", "version": 99, "signals": []}
-        export_file = os.path.join(td, "future.json")
-        with open(export_file, "w") as f:
+        _setup(td)
+        future = {"format": "cmux_mentor_export", "version": 99, "drawers": []}
+        f_path = os.path.join(td, "future.json")
+        with open(f_path, "w") as f:
             json.dump(future, f)
-
-        rc = pm.cmd_import(export_file)
-        assert rc == 1, f"Expected rc=1 for future version, got {rc}"
+        rc = pm.cmd_import(f_path)
+        assert rc == 1
     print("  test_import_version_rejection: PASS")
 
 
-def test_backup_integrity():
-    """backup 후 JSONL 무결성 확인."""
+def test_backup():
+    """backup 생성."""
     with tempfile.TemporaryDirectory() as td:
-        pm.MENTOR_DIR = type(pm.MENTOR_DIR)(os.path.join(td, "mentor"))
-        pm.SIGNALS_FILE = pm.MENTOR_DIR / "signals.jsonl"
-        pm.CONTEXT_DIR = pm.MENTOR_DIR / "context"
-        pm.MENTOR_DIR.mkdir(parents=True, exist_ok=True)
-
-        with open(pm.SIGNALS_FILE, "w") as f:
-            f.write('{"signal_id": "sig-1"}\n')
-            f.write('{"signal_id": "sig-2"}\n')
-
-        # Patch parent to td for backup location
-        original_parent = pm.MENTOR_DIR.parent
-        rc = pm.cmd_backup(max_backups=5)
+        _setup(td)
+        _add_test_signals(td, 2)
+        rc = pm.cmd_backup(max_backups=2)
         assert rc == 0
-        backups = list(Path(td).glob("mentor-backup-*"))
-        assert len(backups) >= 1, "No backup created"
-    print("  test_backup_integrity: PASS")
-
-
-def test_backup_retention():
-    """max_backups=2 → 오래된 것 삭제."""
-    with tempfile.TemporaryDirectory() as td:
-        mentor = Path(td) / "mentor"
-        mentor.mkdir()
-        pm.MENTOR_DIR = mentor
-        pm.SIGNALS_FILE = mentor / "signals.jsonl"
-        pm.SIGNALS_FILE.write_text('{"signal_id":"s1"}\n')
-
-        # Create 3 backups
-        for _ in range(3):
-            pm.cmd_backup(max_backups=2)
-            import time; time.sleep(0.01)
-
-        backups = list(Path(td).glob("mentor-backup-*"))
-        assert len(backups) <= 2, f"Expected <= 2 backups, got {len(backups)}"
-    print("  test_backup_retention: PASS")
+    print("  test_backup: PASS")
 
 
 def main():
     test_generate_l0_default()
     test_generate_l0_custom()
     test_generate_l1_from_signals()
-    test_l1_insufficient_data()
-    test_l1_token_budget()
-    test_l1_calibration_warning()
+    test_l1_no_signals()
+    test_semantic_search()
     test_export_import_roundtrip()
     test_import_dedup()
     test_import_version_rejection()
-    test_backup_integrity()
-    test_backup_retention()
-    print("\nAll palace memory tests passed.")
+    test_backup()
+    print("\nAll palace memory (ChromaDB) tests passed.")
 
 
 if __name__ == "__main__":

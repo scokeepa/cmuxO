@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""jarvis_failure_classifier.py — 반복 실패 원인 분류기.
+"""jarvis_failure_classifier.py — 반복 실패 원인 분류기 (ChromaDB).
 
-SSOT: docs/CMUX-AGI-MENTOR-INTEGRATED-PLAN.md P6
-정책: docs/02-jarvis/mentor-lane.md (Evolution vs Mentor 경계)
-
-분류만 수행. config 변경은 Evolution Lane + Iron Law #1 승인을 통과해야 한다.
+SSOT: docs/02-jarvis/mentor-lane.md
+분류만 수행. config 변경은 Evolution Lane + Iron Law #1 승인 필수.
 
 Usage:
     python3 jarvis_failure_classifier.py classify [--window 5]
@@ -12,58 +10,62 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-MENTOR_DIR = Path.home() / ".claude" / "cmux-jarvis" / "mentor"
-SIGNALS_FILE = MENTOR_DIR / "signals.jsonl"
+import chromadb
+
+PALACE_PATH = os.path.expanduser("~/.cmux-jarvis-palace")
+COLLECTION_NAME = "cmux_mentor_signals"
 TELEMETRY_DIR = Path.home() / ".claude" / "cmux-jarvis" / "telemetry"
 
-SYSTEM_THRESHOLD_SUCCESS_RATE = 70.0  # % below = system problem
+SYSTEM_THRESHOLD_SUCCESS_RATE = 70.0
 SYSTEM_THRESHOLD_ROLLBACKS = 3
-USER_THRESHOLD_ANTIPATTERNS = 3  # occurrences in window
+USER_THRESHOLD_ANTIPATTERNS = 3
+
+AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
 
 RECOMMENDATIONS = {
-    "system": {
-        "recommendation": "Evolution Lane에서 config 검토를 권장합니다.",
-        "iron_law_reminder": "system evolution은 Iron Law #1 승인 필수",
-    },
-    "user_instruction": {
-        "recommendation": "Mentor Lane에서 coaching hint를 강화합니다.",
-        "iron_law_reminder": "",
-    },
-    "mixed": {
-        "recommendation": "시스템 변경 vs 지시 방식 변경을 사용자에게 비교 제안합니다.",
-        "iron_law_reminder": "system 변경 시 Iron Law #1 승인 필수",
-    },
-    "none": {
-        "recommendation": "현재 특별한 조치가 필요하지 않습니다.",
-        "iron_law_reminder": "",
-    },
+    "system": {"recommendation": "Evolution Lane에서 config 검토를 권장합니다.", "iron_law_reminder": "system evolution은 Iron Law #1 승인 필수"},
+    "user_instruction": {"recommendation": "Mentor Lane에서 coaching hint를 강화합니다.", "iron_law_reminder": ""},
+    "mixed": {"recommendation": "시스템 변경 vs 지시 방식 변경을 사용자에게 비교 제안합니다.", "iron_law_reminder": "system 변경 시 Iron Law #1 승인 필수"},
+    "none": {"recommendation": "현재 특별한 조치가 필요하지 않습니다.", "iron_law_reminder": ""},
 }
 
 
+def _get_collection():
+    os.makedirs(PALACE_PATH, exist_ok=True)
+    client = chromadb.PersistentClient(path=PALACE_PATH)
+    try:
+        return client.get_collection(COLLECTION_NAME)
+    except Exception:
+        return client.create_collection(COLLECTION_NAME)
+
+
 def _read_signals(limit=None):
-    if not SIGNALS_FILE.exists():
+    col = _get_collection()
+    try:
+        results = col.get(where={"wing": "cmux_mentor"}, include=["metadatas"], limit=10000)
+    except Exception:
         return []
+
     signals = []
-    with open(SIGNALS_FILE) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    signals.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+    for meta in results.get("metadatas", []):
+        signals.append({
+            "ts": meta.get("ts", ""),
+            "antipatterns": [p for p in meta.get("antipatterns", "").split(",") if p],
+            "confidence": float(meta.get("confidence", 0)),
+        })
+    signals.sort(key=lambda s: s["ts"])
     if limit:
         signals = signals[-limit:]
     return signals
 
 
 def _read_telemetry_summary():
-    """Read recent telemetry events and compute summary."""
     if not TELEMETRY_DIR.exists():
-        return {"total_events": 0, "type_counts": {}, "success_rate_pct": 100.0}
+        return {"total_events": 0, "type_counts": {}, "success_rate_pct": 100.0, "rollback_count": 0}
 
     events = []
     for f in sorted(TELEMETRY_DIR.glob("events-*.jsonl")):
@@ -77,7 +79,7 @@ def _read_telemetry_summary():
             continue
 
     if not events:
-        return {"total_events": 0, "type_counts": {}, "success_rate_pct": 100.0}
+        return {"total_events": 0, "type_counts": {}, "success_rate_pct": 100.0, "rollback_count": 0}
 
     type_counts = {}
     for e in events:
@@ -89,32 +91,23 @@ def _read_telemetry_summary():
     total_outcomes = applies + rollbacks
     success_rate = (applies / total_outcomes * 100) if total_outcomes > 0 else 100.0
 
-    return {
-        "total_events": len(events),
-        "type_counts": type_counts,
-        "success_rate_pct": round(success_rate, 1),
-        "rollback_count": rollbacks,
-    }
+    return {"total_events": len(events), "type_counts": type_counts, "success_rate_pct": round(success_rate, 1), "rollback_count": rollbacks}
 
 
 def classify(window=5):
-    """Classify failure root cause."""
     signals = _read_signals(limit=window)
     telem = _read_telemetry_summary()
 
-    # Mentor signal analysis
-    all_antipatterns = []
+    all_ap = []
     for s in signals:
-        all_antipatterns.extend(s.get("antipatterns", []))
-    ap_count = len(all_antipatterns)
-    unique_ap = list(dict.fromkeys(all_antipatterns))
+        all_ap.extend(s.get("antipatterns", []))
+    ap_count = len(all_ap)
+    unique_ap = list(dict.fromkeys(all_ap))
     avg_conf = round(sum(s.get("confidence", 0) for s in signals) / len(signals), 2) if signals else 0
 
-    # Evolution telemetry analysis
     success_rate = telem.get("success_rate_pct", 100.0)
     rollbacks = telem.get("rollback_count", 0)
 
-    # Classification
     system_flag = success_rate < SYSTEM_THRESHOLD_SUCCESS_RATE or rollbacks >= SYSTEM_THRESHOLD_ROLLBACKS
     user_flag = ap_count >= USER_THRESHOLD_ANTIPATTERNS
 
@@ -128,41 +121,31 @@ def classify(window=5):
         classification = "none"
 
     rec = RECOMMENDATIONS[classification]
-
-    result = {
+    return {
         "classification": classification,
         "evidence": {
-            "evolution_success_rate": success_rate,
-            "evolution_rollbacks": rollbacks,
+            "evolution_success_rate": success_rate, "evolution_rollbacks": rollbacks,
             "evolution_total_events": telem.get("total_events", 0),
-            "mentor_antipattern_count": ap_count,
-            "mentor_antipatterns": unique_ap,
-            "mentor_avg_confidence": avg_conf,
-            "mentor_signals_analyzed": len(signals),
+            "mentor_antipattern_count": ap_count, "mentor_antipatterns": unique_ap,
+            "mentor_avg_confidence": avg_conf, "mentor_signals_analyzed": len(signals),
         },
         "recommendation": rec["recommendation"],
         "iron_law_reminder": rec["iron_law_reminder"],
     }
 
-    return result
-
 
 def cmd_classify(window=5):
-    """Run classification and print result."""
     result = classify(window)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
 def main():
-    parser = argparse.ArgumentParser(description="JARVIS Failure Classifier")
+    parser = argparse.ArgumentParser(description="JARVIS Failure Classifier (ChromaDB)")
     sub = parser.add_subparsers(dest="cmd")
-
-    p_cls = sub.add_parser("classify", help="Classify failure root cause")
-    p_cls.add_argument("--window", type=int, default=5, help="Signal window size")
-
+    p = sub.add_parser("classify")
+    p.add_argument("--window", type=int, default=5)
     args = parser.parse_args()
-
     if args.cmd == "classify":
         return cmd_classify(args.window)
     else:

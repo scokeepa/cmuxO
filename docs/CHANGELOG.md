@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-04-11 (mempalace ChromaDB Migration)
+
+**JSONL → ChromaDB 전면 전환**
+- **jarvis_palace_memory.py** -- mempalace ChromaDB 기반 전면 재작성. L0/L1 context, 시맨틱 검색, export/import (PR #499 dedup), backup + integrity validation, legacy migration
+- **jarvis_mentor_signal.py** -- signals.jsonl → ChromaDB `cmux_mentor` wing drawers. 축별 score를 metadata에 개별 저장. 시맨틱 벡터 검색 가능
+- **jarvis_nudge.py** -- nudge audit → ChromaDB `cmux_nudge` wing drawers. JSONL 파일 의존 제거
+- **jarvis_mentor_report.py** -- report + TIMELINE → ChromaDB `cmux_reports`/`cmux_timeline` wing drawers. vibe-sunsang growth-analyst 패턴 적용
+- **jarvis_failure_classifier.py** -- ChromaDB에서 signal 읽기로 전환
+- **cmux-main-context.sh** -- mempalace ChromaDB에서 직접 L0/L1 + coaching hint 읽기
+- **Palace 경로**: `~/.cmux-jarvis-palace/` (ChromaDB PersistentClient)
+- **Wing 구조**: cmux_mentor (6축), cmux_nudge (재촉), cmux_reports (리포트), cmux_timeline (종단), cmux_coaching (코칭)
+- **Embedding**: all-MiniLM-L6-v2 (ONNX, 로컬)
+- **Prerequisites**: chromadb 추가 (pip3 install chromadb)
+
+**Testing: 62 passed** (ChromaDB 기반 테스트 전면 재작성)
+
 ## 2026-04-11 (AGI Mentor Integration)
 
 **P0: Runtime Bug Fixes**

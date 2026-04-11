@@ -1,7 +1,7 @@
 # Palace Memory SSOT
 
 > 정본. cmux Mentor Lane의 메모리 구조, 4계층 로딩 정책, 저장소 스키마를 정의한다.
-> 원천: `referense/mempalace-main/`의 palace model을 cmux 용어로 변환. ChromaDB 의존 없이 JSONL/SQLite 기반.
+> 원천: `referense/mempalace-main/`의 palace model + mempalace 3.1.0 패키지. **ChromaDB 기반 시맨틱 검색**.
 
 ## cmux 용어 매핑
 
@@ -53,24 +53,22 @@ signals.jsonl에서 최근 signal을 읽어 자동 생성한다.
 
 ### L2 — On-Demand
 
-사용자 또는 Boss/JARVIS가 특정 주제를 요청할 때 signals.jsonl을 wing/room 기준으로 필터한다.
+사용자 또는 Boss/JARVIS가 특정 주제를 요청할 때 ChromaDB `col.get(where={"wing": ..., "room": ...})` 기준으로 필터한다.
 
 ### L3 — Deep Search
 
-Phase 3 이후 구현. palace/index.sqlite에 SQLite FTS5 인덱스를 만들고 full-text search를 제공한다. ChromaDB/MCP adapter는 optional adapter로만 검토한다.
+ChromaDB 시맨틱 벡터 검색. `col.query(query_texts=["검색어"])` 로 의미 기반 검색을 실행한다. all-MiniLM-L6-v2 embedding 모델 사용 (로컬 ONNX).
 
 ## 저장소 구조
 
 ```
-~/.claude/cmux-jarvis/mentor/
-├── signals.jsonl              # derived signal (6축 score, antipattern, confidence)
-├── context/
-│   ├── L0.md                  # identity (고정 텍스트, 사용자 수정 가능)
-│   └── L1.md                  # essential story (signals에서 자동 생성)
-└── palace/
-    ├── index.sqlite           # Phase 3: drawer index + KG triples
-    └── drawers/               # opt-in: raw verbatim JSONL
-        └── {wing}_{room}.jsonl
+~/.cmux-jarvis-palace/                    # ChromaDB PersistentClient 경로
+├── identity.txt                           # L0 identity (사용자 수정 가능)
+├── chroma.sqlite3                         # ChromaDB 내부 DB
+└── (ChromaDB internal files)
+
+Collection: cmux_mentor_signals
+Wings: cmux_mentor, cmux_nudge, cmux_reports, cmux_timeline, cmux_coaching
 ```
 
 기존 운영 메모리(`~/.claude/memory/cmux/`)와 완전히 분리된다.

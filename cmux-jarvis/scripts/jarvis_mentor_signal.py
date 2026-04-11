@@ -1,98 +1,68 @@
 #!/usr/bin/env python3
-"""jarvis_mentor_signal.py — Mentor Lane 6축 signal engine.
+"""jarvis_mentor_signal.py — Mentor Lane 6축 signal engine (ChromaDB).
 
 SSOT: docs/02-jarvis/palace-memory.md
 Schema: docs/02-jarvis/mentor-ontology.md
 
 Usage:
     python3 jarvis_mentor_signal.py emit --event '{"type":"...","data":{...}}'
-    python3 jarvis_mentor_signal.py query --since 2026-04-01 [--summary]
+    python3 jarvis_mentor_signal.py query [--since 2026-04-01] [--summary]
     python3 jarvis_mentor_signal.py prune --keep-days 90
     python3 jarvis_mentor_signal.py tail [--n 5]
 """
 
 import argparse
-import fcntl
 import json
 import os
 import sys
 import time
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 
-SIGNALS_DIR = Path.home() / ".claude" / "cmux-jarvis" / "mentor"
-SIGNALS_FILE = SIGNALS_DIR / "signals.jsonl"
+import chromadb
 
-# 6축 기본 가중치 (cmux orchestration = Builder + Operator 혼합)
+PALACE_PATH = os.path.expanduser("~/.cmux-jarvis-palace")
+COLLECTION_NAME = "cmux_mentor_signals"
+
+AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
+
 DEFAULT_WEIGHTS = {
     "decomp": 0.20, "verify": 0.22, "orch": 0.20,
     "fail": 0.18, "ctx": 0.10, "meta": 0.10,
 }
 
-AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
+
+def _get_collection():
+    os.makedirs(PALACE_PATH, exist_ok=True)
+    client = chromadb.PersistentClient(path=PALACE_PATH)
+    try:
+        return client.get_collection(COLLECTION_NAME)
+    except Exception:
+        return client.create_collection(COLLECTION_NAME)
 
 
 def utc_now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _ensure_dir():
-    SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _append_signal(signal):
-    """Append a signal to signals.jsonl with fcntl locking."""
-    _ensure_dir()
-    with open(SIGNALS_FILE, "a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            f.write(json.dumps(signal, ensure_ascii=False) + "\n")
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
-
-
-def _read_signals():
-    """Read all signals from signals.jsonl."""
-    if not SIGNALS_FILE.exists():
-        return []
-    signals = []
-    with open(SIGNALS_FILE) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    signals.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    return signals
-
-
 def compute_fit_score(scores, weights=None):
-    """Compute weighted fit score from 6-axis scores."""
     w = weights or DEFAULT_WEIGHTS
-    return round(sum(w.get(axis, 0) * scores.get(axis, 0) for axis in AXES), 2)
+    return round(sum(w.get(a, 0) * scores.get(a, 0) for a in AXES), 2)
 
 
 def compute_harness_level(fit_score):
-    """Convert fit score to harness level (0.5 increments)."""
-    raw = fit_score
-    if raw < 0.25:
+    if fit_score < 0.25:
         return 0.0
-    # Map 0-1 score to L1-L7 range (rough heuristic)
-    level = 1.0 + raw * 6.0
-    # Round to 0.5
+    level = 1.0 + fit_score * 6.0
     return round(round(level * 2) / 2, 1)
 
 
 def compute_calibration(evidence_count, confidence):
-    """Determine calibration note based on evidence sufficiency."""
     if evidence_count < 3 or confidence < 0.5:
         return "insufficient_evidence"
     return "ok"
 
 
 def detect_antipatterns(scores):
-    """Detect antipatterns from low axis scores."""
     patterns = []
     if scores.get("fail", 1) < 0.4:
         patterns.append("fix_me_syndrome")
@@ -107,8 +77,7 @@ def detect_antipatterns(scores):
     return patterns
 
 
-def generate_coaching_hint(scores, antipatterns):
-    """Generate a single coaching hint based on weakest axis."""
+def generate_coaching_hint(antipatterns):
     if not antipatterns:
         return ""
     hints = {
@@ -121,8 +90,70 @@ def generate_coaching_hint(scores, antipatterns):
     return hints.get(antipatterns[0], "")
 
 
+def _store_signal(signal):
+    """Store signal as a drawer in ChromaDB palace."""
+    col = _get_collection()
+    scores = signal["scores"]
+    weakest = min(AXES, key=lambda a: scores.get(a, 1))
+
+    doc = json.dumps(scores) + " " + " ".join(signal.get("antipatterns", []))
+    if signal.get("coaching_hint"):
+        doc += " " + signal["coaching_hint"]
+
+    meta = {
+        "wing": "cmux_mentor",
+        "room": weakest,
+        "signal_id": signal["signal_id"],
+        "ts": signal["ts"],
+        "fit_score": signal["fit_score"],
+        "harness_level": signal["harness_level"],
+        "confidence": signal["confidence"],
+        "evidence_count": str(signal.get("evidence_count", 0)),
+        "coaching_hint": signal.get("coaching_hint", ""),
+        "calibration_note": signal.get("calibration_note", ""),
+        "antipatterns": ",".join(signal.get("antipatterns", [])),
+    }
+    # 축별 score를 metadata에 개별 저장 (L1 생성, report, 검색에 필요)
+    for axis in AXES:
+        meta[axis] = scores.get(axis, 0.0)
+
+    col.add(ids=[signal["signal_id"]], documents=[doc], metadatas=[meta])
+
+
+def _read_signals(since=None):
+    """Read signals from ChromaDB palace."""
+    col = _get_collection()
+    try:
+        results = col.get(
+            where={"wing": "cmux_mentor"},
+            include=["metadatas", "documents"],
+            limit=10000,
+        )
+    except Exception:
+        return []
+
+    signals = []
+    for did, meta in zip(results.get("ids", []), results.get("metadatas", [])):
+        ts = meta.get("ts", "")
+        if since and ts < since:
+            continue
+        signals.append({
+            "signal_id": did,
+            "ts": ts,
+            "scores": {a: float(meta.get(a, meta.get(f"score_{a}", 0))) for a in AXES},
+            "fit_score": float(meta.get("fit_score", 0)),
+            "harness_level": float(meta.get("harness_level", 0)),
+            "confidence": float(meta.get("confidence", 0)),
+            "evidence_count": int(meta.get("evidence_count", 0)),
+            "coaching_hint": meta.get("coaching_hint", ""),
+            "calibration_note": meta.get("calibration_note", ""),
+            "antipatterns": [p for p in meta.get("antipatterns", "").split(",") if p],
+        })
+
+    return sorted(signals, key=lambda s: s["ts"])
+
+
 def cmd_emit(event_json, round_id=None, window_size=5):
-    """Process an event and emit a mentor signal."""
     try:
         event = json.loads(event_json) if isinstance(event_json, str) else event_json
     except json.JSONDecodeError:
@@ -131,8 +162,6 @@ def cmd_emit(event_json, round_id=None, window_size=5):
 
     data = event.get("data", {})
     scores = data.get("scores", {})
-
-    # Fill missing axes with default 0.5
     for axis in AXES:
         scores.setdefault(axis, 0.5)
 
@@ -143,14 +172,14 @@ def cmd_emit(event_json, round_id=None, window_size=5):
     harness_level = compute_harness_level(fit_score)
     calibration = compute_calibration(evidence_count, confidence)
     antipatterns = detect_antipatterns(scores)
-    hint = generate_coaching_hint(scores, antipatterns)
+    hint = generate_coaching_hint(antipatterns)
 
     signal = {
         "ts": utc_now(),
         "signal_id": f"sig-{int(time.time())}",
         "round_id": round_id or data.get("round_id", "unknown"),
         "window_size": window_size,
-        "scores": {axis: round(scores[axis], 2) for axis in AXES},
+        "scores": {a: round(scores[a], 2) for a in AXES},
         "fit_score": fit_score,
         "harness_level": harness_level,
         "antipatterns": antipatterns,
@@ -160,17 +189,13 @@ def cmd_emit(event_json, round_id=None, window_size=5):
         "calibration_note": calibration,
     }
 
-    _append_signal(signal)
+    _store_signal(signal)
     print(json.dumps(signal, ensure_ascii=False, indent=2))
     return 0
 
 
 def cmd_query(since=None, summary=False):
-    """Query signals, optionally filtered by date."""
-    signals = _read_signals()
-
-    if since:
-        signals = [s for s in signals if s.get("ts", "") >= since]
+    signals = _read_signals(since)
 
     if summary:
         if not signals:
@@ -179,15 +204,15 @@ def cmd_query(since=None, summary=False):
 
         avg_scores = {}
         for axis in AXES:
-            values = [s["scores"].get(axis, 0) for s in signals]
-            avg_scores[axis] = round(sum(values) / len(values), 2)
+            vals = [s["scores"].get(axis, 0) for s in signals]
+            avg_scores[axis] = round(sum(vals) / len(vals), 2)
 
-        all_patterns = []
+        all_ap = []
         for s in signals:
-            all_patterns.extend(s.get("antipatterns", []))
-        pattern_counts = {}
-        for p in all_patterns:
-            pattern_counts[p] = pattern_counts.get(p, 0) + 1
+            all_ap.extend(s.get("antipatterns", []))
+        ap_counts = {}
+        for p in all_ap:
+            ap_counts[p] = ap_counts.get(p, 0) + 1
 
         result = {
             "count": len(signals),
@@ -195,19 +220,17 @@ def cmd_query(since=None, summary=False):
             "avg_scores": avg_scores,
             "avg_fit_score": round(sum(s["fit_score"] for s in signals) / len(signals), 2),
             "latest_harness_level": signals[-1].get("harness_level"),
-            "antipattern_counts": pattern_counts,
+            "antipattern_counts": ap_counts,
             "avg_confidence": round(sum(s["confidence"] for s in signals) / len(signals), 2),
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         for s in signals:
             print(json.dumps(s, ensure_ascii=False))
-
     return 0
 
 
 def cmd_tail(n=5):
-    """Show recent N signals."""
     signals = _read_signals()
     for s in signals[-n:]:
         print(json.dumps(s, ensure_ascii=False))
@@ -215,42 +238,34 @@ def cmd_tail(n=5):
 
 
 def cmd_prune(keep_days=90):
-    """Remove signals older than keep_days."""
-    if not SIGNALS_FILE.exists():
-        print("No signals file to prune.")
-        return 0
-
+    col = _get_collection()
     cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    signals = _read_signals()
-    kept = [s for s in signals if s.get("ts", "") >= cutoff]
-    pruned = len(signals) - len(kept)
 
-    if pruned > 0:
-        import tempfile
-        tmp_path = str(SIGNALS_FILE) + ".tmp"
-        with open(tmp_path, "w") as f:
-            for s in kept:
-                f.write(json.dumps(s, ensure_ascii=False) + "\n")
-        os.rename(tmp_path, str(SIGNALS_FILE))
+    results = col.get(where={"wing": "cmux_mentor"}, include=["metadatas"], limit=10000)
+    to_delete = [did for did, meta in zip(results.get("ids", []), results.get("metadatas", []))
+                 if meta.get("ts", "9999") < cutoff]
 
-    print(f"Pruned {pruned} signals (kept {len(kept)}, cutoff {cutoff})")
+    if to_delete:
+        col.delete(ids=to_delete)
+
+    print(f"Pruned {len(to_delete)} signals (cutoff {cutoff})")
     return 0
 
 
 def main():
-    parser = argparse.ArgumentParser(description="JARVIS Mentor Signal Engine")
+    parser = argparse.ArgumentParser(description="JARVIS Mentor Signal Engine (ChromaDB)")
     sub = parser.add_subparsers(dest="cmd")
 
-    p_emit = sub.add_parser("emit", help="Emit a mentor signal from event")
-    p_emit.add_argument("--event", required=True, help="Event JSON string")
+    p_emit = sub.add_parser("emit", help="Emit a mentor signal")
+    p_emit.add_argument("--event", required=True)
     p_emit.add_argument("--round-id", default=None)
     p_emit.add_argument("--window-size", type=int, default=5)
 
     p_query = sub.add_parser("query", help="Query signals")
-    p_query.add_argument("--since", default=None, help="ISO date filter")
+    p_query.add_argument("--since", default=None)
     p_query.add_argument("--summary", action="store_true")
 
-    p_tail = sub.add_parser("tail", help="Show recent signals")
+    p_tail = sub.add_parser("tail", help="Recent signals")
     p_tail.add_argument("--n", type=int, default=5)
 
     p_prune = sub.add_parser("prune", help="Prune old signals")

@@ -77,41 +77,50 @@ if os.path.exists(memory_file):
 
 msg = f'[CMUX-MAIN] 와쳐 캐시 주입 (scan: {int(scan_age)}초 전)\\n와쳐: {watcher}\\n메인: {main}\\nsurface: {total}개\\n{summary}{traits_section}{mem_section}'
 
-# Mentor context (L0/L1) 주입 — 600-900 token budget
+# Mentor context (L0/L1) 주입 — mempalace ChromaDB 기반
 mentor_section = ''
-l0_file = os.path.expanduser('~/.claude/cmux-jarvis/mentor/context/L0.md')
-l1_file = os.path.expanduser('~/.claude/cmux-jarvis/mentor/context/L1.md')
-if os.path.exists(l1_file):
-    try:
-        l0 = open(l0_file).read().strip() if os.path.exists(l0_file) else ''
-        l1 = open(l1_file).read().strip()
-        combined = l0 + chr(10) + l1
-        if len(combined) <= 3600:
-            mentor_section = chr(10) + chr(10) + '[MENTOR CONTEXT]' + chr(10) + combined
-    except Exception:
-        pass
-
-# Coaching hint (반복 spam 방지)
 hint_section = ''
-hint_cache = '/tmp/cmux-mentor-last-hint.txt'
-signals_file = os.path.expanduser('~/.claude/cmux-jarvis/mentor/signals.jsonl')
-if os.path.exists(signals_file):
-    try:
-        with open(signals_file) as sf:
-            lines_list = sf.readlines()
-        if lines_list:
-            latest = json.loads(lines_list[-1].strip())
-            hint = latest.get('coaching_hint', '')
-            if hint:
-                prev_hint = ''
-                if os.path.exists(hint_cache):
-                    prev_hint = open(hint_cache).read().strip()
-                if hint != prev_hint:
-                    hint_section = chr(10) + '[MENTOR HINT] ' + hint
-                    with open(hint_cache, 'w') as hf:
-                        hf.write(hint)
-    except Exception:
-        pass
+try:
+    palace_path = os.path.expanduser('~/.cmux-jarvis-palace')
+    identity_file = os.path.join(palace_path, 'identity.txt')
+    if os.path.exists(palace_path):
+        l0 = ''
+        if os.path.exists(identity_file):
+            l0 = open(identity_file).read().strip()
+
+        import chromadb as _cdb
+        _client = _cdb.PersistentClient(path=palace_path)
+        try:
+            _col = _client.get_collection('cmux_mentor_signals')
+        except Exception:
+            _col = None
+
+        if _col and _col.count() > 0:
+            _res = _col.get(where={'wing': 'cmux_mentor'}, include=['metadatas'], limit=10)
+            _metas = sorted(_res.get('metadatas', []), key=lambda m: m.get('ts', ''), reverse=True)
+            if _metas:
+                _latest = _metas[0]
+                l1_lines = ['[MENTOR L1] Harness Level: L' + str(_latest.get('harness_level', '?'))]
+                _hint = _latest.get('coaching_hint', '')
+                if _hint:
+                    l1_lines.append('Hint: ' + _hint)
+                l1 = chr(10).join(l1_lines)
+                combined = l0 + chr(10) + l1 if l0 else l1
+                if len(combined) <= 3600:
+                    mentor_section = chr(10) + chr(10) + '[MENTOR CONTEXT]' + chr(10) + combined
+
+                # Coaching hint spam 방지
+                if _hint:
+                    hint_cache = '/tmp/cmux-mentor-last-hint.txt'
+                    prev_hint = ''
+                    if os.path.exists(hint_cache):
+                        prev_hint = open(hint_cache).read().strip()
+                    if _hint != prev_hint:
+                        hint_section = chr(10) + '[MENTOR HINT] ' + _hint
+                        with open(hint_cache, 'w') as hf:
+                            hf.write(_hint)
+except Exception:
+    pass
 
 msg = msg + mentor_section + hint_section
 

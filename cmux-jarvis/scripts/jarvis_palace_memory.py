@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""jarvis_palace_memory.py — L0/L1 context 생성 + 저장소 현황.
+"""jarvis_palace_memory.py — mempalace ChromaDB 기반 Palace Memory.
 
 SSOT: docs/02-jarvis/palace-memory.md
 Token budget: L0+L1 합산 600-900 token (mentor-lane.md)
@@ -7,92 +7,98 @@ Token budget: L0+L1 합산 600-900 token (mentor-lane.md)
 Usage:
     python3 jarvis_palace_memory.py generate-context
     python3 jarvis_palace_memory.py status
+    python3 jarvis_palace_memory.py search "query" [--wing W] [--room R]
+    python3 jarvis_palace_memory.py export --output /path/to/export.json
+    python3 jarvis_palace_memory.py import --input /path/to/export.json
+    python3 jarvis_palace_memory.py backup [--max-backups 5]
+    python3 jarvis_palace_memory.py migrate  # signals.jsonl → ChromaDB 이관
 """
 
 import argparse
 import json
 import os
+import shutil
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-MENTOR_DIR = Path.home() / ".claude" / "cmux-jarvis" / "mentor"
-CONTEXT_DIR = MENTOR_DIR / "context"
-SIGNALS_FILE = MENTOR_DIR / "signals.jsonl"
-L0_FILE = CONTEXT_DIR / "L0.md"
-L1_FILE = CONTEXT_DIR / "L1.md"
+import chromadb
 
-MAX_L1_CHARS = 3200  # ~800 tokens (mempalace L1 기준)
-MAX_TOTAL_TOKENS = 900  # L0+L1 합산 제한
-MAX_SIGNALS_FOR_L1 = 15  # L1 생성에 사용할 최대 signal 수
+PALACE_PATH = os.path.expanduser("~/.cmux-jarvis-palace")
+COLLECTION_NAME = "cmux_mentor_signals"
+IDENTITY_PATH = os.path.join(PALACE_PATH, "identity.txt")
+LEGACY_SIGNALS = Path.home() / ".claude" / "cmux-jarvis" / "mentor" / "signals.jsonl"
 
-AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
+MAX_TOTAL_TOKENS = 900
+EXPORT_FORMAT = "cmux_mentor_export"
+EXPORT_VERSION = 2  # v2: ChromaDB-based
 
-AXIS_NAMES = {
-    "decomp": "DECOMP", "verify": "VERIFY", "orch": "ORCH",
-    "fail": "FAIL", "ctx": "CTX", "meta": "META",
-}
-
-L0_DEFAULT = """## L0 — IDENTITY
-cmux 오케스트레이션 시스템의 CEO 사용자.
+L0_DEFAULT = """cmux 오케스트레이션 시스템의 CEO 사용자.
 Boss(Main), Watcher, JARVIS로 구성된 컨트롤 타워를 운영.
 부서별 팀장-팀원 구조로 멀티 AI 작업을 조율."""
 
+AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
 
-def _ensure_dirs():
-    CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
+
+def _get_collection():
+    """Get or create the cmux mentor palace collection."""
+    os.makedirs(PALACE_PATH, exist_ok=True)
+    client = chromadb.PersistentClient(path=PALACE_PATH)
+    try:
+        return client.get_collection(COLLECTION_NAME)
+    except Exception:
+        return client.create_collection(COLLECTION_NAME)
 
 
 def _estimate_tokens(text):
-    """Rough token estimate: chars // 4."""
     return len(text) // 4
 
 
-def _read_signals(limit=None):
-    """Read signals from signals.jsonl, optionally last N."""
-    if not SIGNALS_FILE.exists():
-        return []
-    signals = []
-    with open(SIGNALS_FILE) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    signals.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    if limit:
-        signals = signals[-limit:]
-    return signals
+# ── L0 / L1 ────────────────────────────────────────────────────────
 
 
 def generate_l0():
-    """Generate L0 identity context."""
-    _ensure_dirs()
-    if L0_FILE.exists():
-        return L0_FILE.read_text(encoding="utf-8")
-    # Create default
-    L0_FILE.write_text(L0_DEFAULT, encoding="utf-8")
+    """Generate L0 identity context from identity.txt."""
+    if os.path.exists(IDENTITY_PATH):
+        with open(IDENTITY_PATH) as f:
+            return f.read().strip()
+    os.makedirs(PALACE_PATH, exist_ok=True)
+    with open(IDENTITY_PATH, "w") as f:
+        f.write(L0_DEFAULT)
     return L0_DEFAULT
 
 
-def generate_l1(signals=None):
-    """Generate L1 essential story from recent signals."""
-    if signals is None:
-        signals = _read_signals(limit=MAX_SIGNALS_FOR_L1)
-
-    if not signals:
+def generate_l1():
+    """Generate L1 essential story from recent palace drawers."""
+    col = _get_collection()
+    try:
+        results = col.get(
+            where={"wing": "cmux_mentor"},
+            include=["metadatas"],
+            limit=500,
+        )
+    except Exception:
         return "## L1 — ESSENTIAL STORY\n아직 충분한 관찰이 없습니다."
 
-    latest = signals[-1]
-    scores = latest.get("scores", {})
+    metas = results.get("metadatas", [])
+    if not metas:
+        return "## L1 — ESSENTIAL STORY\n아직 충분한 관찰이 없습니다."
 
-    # Sort axes by score
-    sorted_axes = sorted(
-        [(axis, scores.get(axis, 0)) for axis in AXES],
-        key=lambda x: x[1], reverse=True,
-    )
-    strong = [f"{AXIS_NAMES[a]} ({v:.2f})" for a, v in sorted_axes[:2]]
-    weak = [f"{AXIS_NAMES[a]} ({v:.2f})" for a, v in sorted_axes[-2:]]
+    # Sort by timestamp, get latest
+    sorted_metas = sorted(metas, key=lambda m: m.get("ts", ""), reverse=True)
+    latest = sorted_metas[0]
+
+    # Aggregate scores from recent signals
+    recent = sorted_metas[:10]
+    avg_scores = {}
+    for axis in AXES:
+        vals = [float(m.get(axis, m.get(f"score_{axis}", 0))) for m in recent if m.get(axis) or m.get(f"score_{axis}")]
+        avg_scores[axis] = round(sum(vals) / len(vals), 2) if vals else 0.0
+
+    sorted_axes = sorted(avg_scores.items(), key=lambda x: x[1], reverse=True)
+    strong = [f"{a.upper()} ({v:.2f})" for a, v in sorted_axes[:2]]
+    weak = [f"{a.upper()} ({v:.2f})" for a, v in sorted_axes[-2:]]
 
     lines = [
         "## L1 — ESSENTIAL STORY",
@@ -102,279 +108,320 @@ def generate_l1(signals=None):
         f"- 약한 축: {', '.join(weak)}",
     ]
 
-    # Antipatterns from recent signals
-    recent_patterns = []
-    for s in signals[-5:]:
-        recent_patterns.extend(s.get("antipatterns", []))
-    if recent_patterns:
-        unique_patterns = list(dict.fromkeys(recent_patterns))[:3]
-        lines.append(f"- 최근 안티패턴: {', '.join(unique_patterns)}")
+    # Antipatterns from recent
+    patterns = []
+    for m in recent[:5]:
+        ap = m.get("antipatterns", "")
+        if ap:
+            patterns.extend(ap.split(",") if isinstance(ap, str) else ap)
+    if patterns:
+        unique = list(dict.fromkeys(p.strip() for p in patterns if p.strip()))[:3]
+        lines.append(f"- 최근 안티패턴: {', '.join(unique)}")
 
-    # Latest coaching hint
     hint = latest.get("coaching_hint", "")
     if hint:
         lines.append(f'- 코칭 힌트: "{hint}"')
 
-    # Calibration warning
     if latest.get("calibration_note") == "insufficient_evidence":
         lines.append("- 주의: 표본 부족으로 신뢰도가 낮습니다.")
 
-    # Trend (if enough signals)
-    if len(signals) >= 3:
-        first_fit = signals[0].get("fit_score", 0)
-        last_fit = signals[-1].get("fit_score", 0)
-        diff = last_fit - first_fit
-        if abs(diff) > 0.1:
-            direction = "상승" if diff > 0 else "하락"
-            lines.append(f"- 추세: fit score {direction} ({first_fit:.1f} → {last_fit:.1f})")
-
     text = "\n".join(lines)
-    return text[:MAX_L1_CHARS]
+    return text[:3200]
 
 
 def cmd_generate_context():
-    """Generate L0 + L1 and write to files."""
-    _ensure_dirs()
+    """Generate L0 + L1 and print."""
+    l0 = generate_l0()
+    l1 = generate_l1()
 
-    l0_text = generate_l0()
-    l1_text = generate_l1()
-
-    L1_FILE.write_text(l1_text, encoding="utf-8")
-
-    l0_tokens = _estimate_tokens(l0_text)
-    l1_tokens = _estimate_tokens(l1_text)
+    l0_tokens = _estimate_tokens(l0)
+    l1_tokens = _estimate_tokens(l1)
     total = l0_tokens + l1_tokens
 
-    # Truncate L1 if over budget
     if total > MAX_TOTAL_TOKENS:
         budget = MAX_TOTAL_TOKENS - l0_tokens
-        max_chars = budget * 4
-        l1_text = l1_text[:max_chars]
-        L1_FILE.write_text(l1_text, encoding="utf-8")
-        l1_tokens = _estimate_tokens(l1_text)
+        l1 = l1[:budget * 4]
+        l1_tokens = _estimate_tokens(l1)
         total = l0_tokens + l1_tokens
 
-    print(f"L0: {L0_FILE} ({l0_tokens} tokens)")
-    print(f"L1: {L1_FILE} ({l1_tokens} tokens)")
+    print(f"L0 ({l0_tokens} tokens):\n{l0}\n")
+    print(f"L1 ({l1_tokens} tokens):\n{l1}\n")
     print(f"Total: {total}/{MAX_TOTAL_TOKENS} tokens")
     return 0
 
 
+# ── Search ──────────────────────────────────────────────────────────
+
+
+def cmd_search(query, wing=None, room=None, n_results=5):
+    """Semantic search across palace drawers."""
+    col = _get_collection()
+    where = {}
+    if wing and room:
+        where = {"$and": [{"wing": wing}, {"room": room}]}
+    elif wing:
+        where = {"wing": wing}
+    elif room:
+        where = {"room": room}
+
+    kwargs = {"query_texts": [query], "n_results": n_results, "include": ["documents", "metadatas", "distances"]}
+    if where:
+        kwargs["where"] = where
+
+    results = col.query(**kwargs)
+
+    ids = results.get("ids", [[]])[0]
+    docs = results.get("documents", [[]])[0]
+    metas = results.get("metadatas", [[]])[0]
+    dists = results.get("distances", [[]])[0]
+
+    if not ids:
+        print("No results found.")
+        return 0
+
+    for i, (did, doc, meta, dist) in enumerate(zip(ids, docs, metas, dists)):
+        sim = round(1 - dist, 3)
+        wing_r = meta.get("wing", "?")
+        room_r = meta.get("room", "?")
+        snippet = (doc[:120] + "...") if len(doc) > 120 else doc
+        print(f"[{i+1}] {wing_r}/{room_r} (sim={sim}) — {snippet}")
+        print(f"     id={did} ts={meta.get('ts', '?')}")
+
+    return 0
+
+
+# ── Status ──────────────────────────────────────────────────────────
+
+
 def cmd_status():
-    """Show mentor storage status."""
-    signals = _read_signals()
+    """Show palace status."""
+    col = _get_collection()
+    total = col.count()
+
+    wings = {}
+    if total > 0:
+        all_data = col.get(include=["metadatas"], limit=min(total, 1000))
+        for m in all_data.get("metadatas", []):
+            w = m.get("wing", "unknown")
+            wings[w] = wings.get(w, 0) + 1
 
     status = {
-        "signals_file": str(SIGNALS_FILE),
-        "signals_count": len(signals),
-        "signals_file_exists": SIGNALS_FILE.exists(),
-        "l0_exists": L0_FILE.exists(),
-        "l1_exists": L1_FILE.exists(),
-        "palace_dir_exists": (MENTOR_DIR / "palace").exists(),
-        "drawers_dir_exists": (MENTOR_DIR / "palace" / "drawers").exists(),
+        "palace_path": PALACE_PATH,
+        "collection": COLLECTION_NAME,
+        "total_drawers": total,
+        "wings": wings,
+        "identity_exists": os.path.exists(IDENTITY_PATH),
+        "legacy_signals_exists": LEGACY_SIGNALS.exists(),
     }
-
-    if signals:
-        status["latest_signal_ts"] = signals[-1].get("ts", "unknown")
-        status["latest_harness_level"] = signals[-1].get("harness_level")
-        status["latest_calibration"] = signals[-1].get("calibration_note")
-
-    if SIGNALS_FILE.exists():
-        status["signals_file_size_bytes"] = SIGNALS_FILE.stat().st_size
-
     print(json.dumps(status, ensure_ascii=False, indent=2))
     return 0
 
 
-EXPORT_FORMAT = "cmux_mentor_export"
-EXPORT_VERSION = 1
-NUDGE_AUDIT_FILE = MENTOR_DIR / "nudge-audit.jsonl"
-
-
-def _read_jsonl(path):
-    """Read JSONL file, return list of dicts."""
-    if not path.exists():
-        return []
-    items = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    items.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    return items
+# ── Export / Import / Backup (PR #499 pattern) ──────────────────────
 
 
 def cmd_export(output_file):
-    """Export mentor data to a single JSON file."""
-    signals = _read_signals()
-    nudge_audit = _read_jsonl(NUDGE_AUDIT_FILE)
+    """Export palace data to JSON."""
+    col = _get_collection()
+    total = col.count()
 
-    l0_text = L0_FILE.read_text(encoding="utf-8") if L0_FILE.exists() else ""
-    l1_text = L1_FILE.read_text(encoding="utf-8") if L1_FILE.exists() else ""
+    drawers = []
+    offset = 0
+    while offset < total:
+        batch = col.get(include=["documents", "metadatas"], limit=500, offset=offset)
+        ids = batch.get("ids", [])
+        if not ids:
+            break
+        for did, doc, meta in zip(ids, batch["documents"], batch["metadatas"]):
+            drawers.append({"id": did, "document": doc, "metadata": meta})
+        offset += len(ids)
 
     export_data = {
         "format": EXPORT_FORMAT,
         "version": EXPORT_VERSION,
-        "exported_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "signals": signals,
-        "nudge_audit": nudge_audit,
-        "l0": l0_text,
-        "l1": l1_text,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "palace_path": PALACE_PATH,
+        "drawers": drawers,
     }
 
-    output = Path(output_file)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with open(output, "w", encoding="utf-8") as f:
+    out = Path(output_file)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
         json.dump(export_data, f, indent=2, ensure_ascii=False)
 
-    print(f"Exported: {len(signals)} signals, {len(nudge_audit)} nudge events → {output}")
-    print("Note: JSONL 텍스트 기반 — embedding 재생성 불필요.")
+    print(f"Exported {len(drawers)} drawers → {out}")
+    print("Note: embeddings not included. ChromaDB auto re-embeds on import.")
     return 0
 
 
 def cmd_import(input_file, skip_existing=True):
-    """Import mentor data from a JSON export file."""
-    try:
-        with open(input_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        print(f"Error: {e}")
-        return 1
+    """Import palace data from JSON."""
+    with open(input_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    # Format validation
     if data.get("format") != EXPORT_FORMAT:
-        print(f"Error: unknown format '{data.get('format')}'. Expected: {EXPORT_FORMAT}")
+        print(f"Error: unknown format '{data.get('format')}'")
         return 1
-
     if data.get("version", 0) > EXPORT_VERSION:
-        print(f"Error: export version {data.get('version')} > supported ({EXPORT_VERSION})")
+        print(f"Error: version {data.get('version')} > supported ({EXPORT_VERSION})")
         return 1
 
-    _ensure_dirs()
-    imported = 0
-    skipped = 0
+    col = _get_collection()
+    existing_ids = set()
+    if skip_existing:
+        offset = 0
+        while True:
+            batch = col.get(limit=500, offset=offset)
+            batch_ids = batch.get("ids", [])
+            if not batch_ids:
+                break
+            existing_ids.update(batch_ids)
+            offset += len(batch_ids)
 
-    # Import signals with dedup by signal_id
-    import_signals = data.get("signals", [])
-    if import_signals:
-        existing_ids = set()
-        if skip_existing:
-            for s in _read_signals():
-                sid = s.get("signal_id", "")
-                if sid:
-                    existing_ids.add(sid)
+    imported, skipped = 0, 0
+    batch_ids, batch_docs, batch_metas = [], [], []
 
-        import fcntl
-        with open(SIGNALS_FILE, "a") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                for s in import_signals:
-                    sid = s.get("signal_id", "")
-                    if skip_existing and sid in existing_ids:
-                        skipped += 1
-                        continue
-                    f.write(json.dumps(s, ensure_ascii=False) + "\n")
-                    existing_ids.add(sid)
-                    imported += 1
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+    for drawer in data.get("drawers", []):
+        did = drawer["id"]
+        if skip_existing and did in existing_ids:
+            skipped += 1
+            continue
+        batch_ids.append(did)
+        batch_docs.append(drawer["document"])
+        batch_metas.append(drawer["metadata"])
 
-    # Import nudge audit (append, no dedup — audit log is append-only)
-    nudge_events = data.get("nudge_audit", [])
-    nudge_imported = 0
-    if nudge_events:
-        import fcntl
-        with open(NUDGE_AUDIT_FILE, "a") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                for e in nudge_events:
-                    f.write(json.dumps(e, ensure_ascii=False) + "\n")
-                    nudge_imported += 1
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+        if len(batch_ids) >= 100:
+            col.add(ids=batch_ids, documents=batch_docs, metadatas=batch_metas)
+            imported += len(batch_ids)
+            batch_ids, batch_docs, batch_metas = [], [], []
 
-    # Restore L0/L1 if not present
-    l0_data = data.get("l0", "")
-    l1_data = data.get("l1", "")
-    if l0_data and not L0_FILE.exists():
-        L0_FILE.write_text(l0_data, encoding="utf-8")
-    if l1_data and not L1_FILE.exists():
-        L1_FILE.write_text(l1_data, encoding="utf-8")
+    if batch_ids:
+        col.add(ids=batch_ids, documents=batch_docs, metadatas=batch_metas)
+        imported += len(batch_ids)
 
-    print(f"Imported: {imported} signals ({skipped} skipped), {nudge_imported} nudge events")
+    print(f"Imported {imported} drawers ({skipped} skipped)")
     return 0
 
 
 def cmd_backup(max_backups=5):
-    """Create a timestamped backup of the mentor directory."""
-    import shutil
-    from datetime import datetime, timezone
-
-    if not MENTOR_DIR.exists():
-        print("No mentor directory to backup.")
+    """Create timestamped backup of palace directory."""
+    if not os.path.exists(PALACE_PATH):
+        print("No palace to backup.")
         return 0
 
-    parent = MENTOR_DIR.parent
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    backup_dir = parent / f"mentor-backup-{timestamp}"
+    parent = Path(PALACE_PATH).parent
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    backup_dir = parent / f"cmux-jarvis-palace-backup-{ts}"
 
-    try:
-        shutil.copytree(MENTOR_DIR, backup_dir)
-    except Exception as e:
-        print(f"Backup error: {e}")
-        return 1
+    shutil.copytree(PALACE_PATH, backup_dir)
 
-    # Integrity validation — check all JSONL lines parse
-    validation_errors = []
-    for jsonl_file in backup_dir.rglob("*.jsonl"):
+    # Integrity: check SQLite if present
+    import sqlite3
+    for db_file in backup_dir.rglob("*.sqlite3"):
         try:
-            with open(jsonl_file) as f:
-                for i, line in enumerate(f, 1):
-                    line = line.strip()
-                    if line:
-                        json.loads(line)
-        except json.JSONDecodeError as e:
-            validation_errors.append(f"{jsonl_file.name}:{i}: {e}")
+            conn = sqlite3.connect(str(db_file))
+            result = conn.execute("PRAGMA integrity_check").fetchone()
+            conn.close()
+            if result[0] != "ok":
+                print(f"Warning: integrity issue in {db_file.name}")
+        except Exception as e:
+            print(f"Warning: {db_file.name}: {e}")
 
-    if validation_errors:
-        print(f"Warning: {len(validation_errors)} integrity issues:")
-        for err in validation_errors[:5]:
-            print(f"  - {err}")
-    else:
-        print(f"Backup OK: {backup_dir}")
-
-    # Retention: prune old backups
+    # Retention
     if max_backups > 0:
-        all_backups = sorted(parent.glob("mentor-backup-*"))
+        all_backups = sorted(parent.glob("cmux-jarvis-palace-backup-*"))
         while len(all_backups) > max_backups:
             oldest = all_backups.pop(0)
             shutil.rmtree(oldest)
-            print(f"  Pruned: {oldest.name}")
 
     size = sum(f.stat().st_size for f in backup_dir.rglob("*") if f.is_file())
-    print(f"  Size: {size:,} bytes, backups retained: {min(max_backups, len(list(parent.glob('mentor-backup-*'))))}")
+    print(f"Backup OK: {backup_dir} ({size:,} bytes)")
     return 0
 
 
+# ── Migration (signals.jsonl → ChromaDB) ───────────────────────────
+
+
+def cmd_migrate():
+    """Migrate legacy signals.jsonl to ChromaDB palace."""
+    if not LEGACY_SIGNALS.exists():
+        print("No legacy signals.jsonl found.")
+        return 0
+
+    col = _get_collection()
+    existing_ids = set(col.get(limit=10000).get("ids", []))
+
+    migrated, skipped = 0, 0
+    with open(LEGACY_SIGNALS) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                signal = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            sid = signal.get("signal_id", f"legacy-{migrated}")
+            if sid in existing_ids:
+                skipped += 1
+                continue
+
+            scores = signal.get("scores", {})
+            weakest = min(AXES, key=lambda a: scores.get(a, 1))
+            doc = json.dumps(scores) + " " + " ".join(signal.get("antipatterns", []))
+            meta = {
+                "wing": "cmux_mentor",
+                "room": weakest,
+                "signal_id": sid,
+                "ts": signal.get("ts", ""),
+                "fit_score": float(signal.get("fit_score", 0)),
+                "harness_level": float(signal.get("harness_level", 0)),
+                "confidence": float(signal.get("confidence", 0)),
+                "evidence_count": str(signal.get("evidence_count", 0)),
+                "coaching_hint": signal.get("coaching_hint", ""),
+                "calibration_note": signal.get("calibration_note", ""),
+                "antipatterns": ",".join(signal.get("antipatterns", [])),
+            }
+
+            col.add(ids=[sid], documents=[doc], metadatas=[meta])
+            existing_ids.add(sid)
+            migrated += 1
+
+    print(f"Migrated {migrated} signals ({skipped} skipped)")
+    if migrated > 0:
+        print(f"Legacy file kept at: {LEGACY_SIGNALS}")
+        print("Delete manually after verifying: rm {LEGACY_SIGNALS}")
+    return 0
+
+
+# ── Main ────────────────────────────────────────────────────────────
+
+
 def main():
-    parser = argparse.ArgumentParser(description="JARVIS Palace Memory Context Generator")
+    parser = argparse.ArgumentParser(description="JARVIS Palace Memory (ChromaDB)")
     sub = parser.add_subparsers(dest="cmd")
 
-    sub.add_parser("generate-context", help="Generate L0 + L1 context files")
-    sub.add_parser("status", help="Show mentor storage status")
+    sub.add_parser("generate-context", help="Generate L0 + L1 context")
+    sub.add_parser("status", help="Show palace status")
 
-    p_export = sub.add_parser("export", help="Export mentor data to JSON")
-    p_export.add_argument("--output", required=True, help="Output JSON file path")
+    p_search = sub.add_parser("search", help="Semantic search")
+    p_search.add_argument("query", help="Search query")
+    p_search.add_argument("--wing", default=None)
+    p_search.add_argument("--room", default=None)
+    p_search.add_argument("--n", type=int, default=5)
 
-    p_import = sub.add_parser("import", help="Import mentor data from JSON")
-    p_import.add_argument("--input", required=True, help="Input JSON file path")
-    p_import.add_argument("--no-skip-existing", action="store_true", help="Don't skip existing signals")
+    p_export = sub.add_parser("export", help="Export palace to JSON")
+    p_export.add_argument("--output", required=True)
 
-    p_backup = sub.add_parser("backup", help="Create timestamped backup")
-    p_backup.add_argument("--max-backups", type=int, default=5, help="Max backups to retain")
+    p_import = sub.add_parser("import", help="Import palace from JSON")
+    p_import.add_argument("--input", required=True)
+    p_import.add_argument("--no-skip-existing", action="store_true")
+
+    p_backup = sub.add_parser("backup", help="Create backup")
+    p_backup.add_argument("--max-backups", type=int, default=5)
+
+    sub.add_parser("migrate", help="Migrate legacy signals.jsonl → ChromaDB")
 
     args = parser.parse_args()
 
@@ -382,12 +429,16 @@ def main():
         return cmd_generate_context()
     elif args.cmd == "status":
         return cmd_status()
+    elif args.cmd == "search":
+        return cmd_search(args.query, args.wing, args.room, args.n)
     elif args.cmd == "export":
         return cmd_export(args.output)
     elif args.cmd == "import":
         return cmd_import(args.input, skip_existing=not args.no_skip_existing)
     elif args.cmd == "backup":
         return cmd_backup(args.max_backups)
+    elif args.cmd == "migrate":
+        return cmd_migrate()
     else:
         parser.print_help()
         return 0
