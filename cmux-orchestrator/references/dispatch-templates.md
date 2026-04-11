@@ -104,6 +104,28 @@ Main은 부서에 작업 전달 시 반드시 다음 문구를 포함한다:
 
 ---
 
+## 팀장 적용 규칙 (CLAUDE.md leceipts 전체)
+
+팀장은 코드를 직접 변경하므로 leceipts Working Rules 전체 적용:
+1. **작업 절차:** 관련 파일 먼저 읽기 → 근본 원인 요약 → 최소 변경 → 검증 실행 → 보고
+2. **5-섹션 DONE 보고:** Root cause / Change / Recurrence prevention / Verification / Remaining risk
+   → leceipts-gate.py가 commit 전에 자동 검증
+3. **검증 규칙:** 완료 전 테스트/타입체크/빌드 실제 실행. "예상" "기대"를 결과로 표현 금지.
+4. **범위 경계:** 지시받은 파일만 수정. 주변 개선은 DONE 보고에 제안만.
+5. **수치 제한:** 수정 파일 5개 이하 권장. 초과 시 사유 명시.
+
+---
+
+## 팀원 적용 규칙 (간소화)
+
+팀원은 비-Claude AI(Codex/Gemini)일 수 있으므로 간소화:
+- 지시받은 파일만 수정 (범위 외 수정 금지)
+- 완료 후 "DONE: 요약" 출력 (수정한 파일 절대경로 포함)
+- 스캐폴딩/stub만 만들고 DONE 금지 — 실제 구현 완료 후 보고
+- git commit 금지 (Main만 수행)
+
+---
+
 ## 태스크→큐 변환 프로토콜 (MANDATORY)
 
 speckit-tasks가 생성한 태스크를 cmux 작업 큐로 변환하는 구체적 절차:
