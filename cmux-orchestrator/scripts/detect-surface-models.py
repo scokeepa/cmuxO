@@ -92,10 +92,20 @@ def save_roles(roles):
     os.rename(tmp, str(ROLES_FILE))
 
 def detect_role(screen_text, surface_ref=""):
-    """역할 감지: 1) 레지스트리 → 2) 화면 패턴"""
+    """역할 감지: 1) 레지스트리(TTL 검증) → 2) 화면 패턴"""
+    from datetime import datetime, timezone, timedelta
     roles = load_roles()
     for role, info in roles.items():
         if info.get("surface") == surface_ref:
+            # TTL 검증: last_heartbeat가 5분 이내인지
+            hb = info.get("last_heartbeat", "")
+            if hb:
+                try:
+                    ts = datetime.fromisoformat(hb.replace("Z", "+00:00"))
+                    if (datetime.now(timezone.utc) - ts) > timedelta(minutes=5):
+                        continue  # stale role → 무시, 다음 엔트리 확인
+                except (ValueError, TypeError):
+                    pass
             return role
     if not screen_text:
         return "worker"

@@ -5,7 +5,11 @@ import os
 import subprocess
 import sys
 
-HOOKS_DIR = os.getenv("CMUX_HOOKS_DIR", os.path.expanduser("~/.claude/hooks"))
+_repo_hooks = os.path.join(os.path.dirname(__file__), "..", "cmux-orchestrator", "hooks")
+if os.path.isdir(_repo_hooks):
+    HOOKS_DIR = os.getenv("CMUX_HOOKS_DIR", os.path.abspath(_repo_hooks))
+else:
+    HOOKS_DIR = os.getenv("CMUX_HOOKS_DIR", os.path.expanduser("~/.claude/hooks"))
 ORCH_FLAG = "/tmp/cmux-orch-enabled"
 
 def _check_hooks_available():

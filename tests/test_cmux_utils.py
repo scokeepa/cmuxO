@@ -5,7 +5,11 @@ import os
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+_repo_scripts = os.path.join(os.path.dirname(__file__), "..", "cmux-orchestrator", "scripts")
+if os.path.isdir(_repo_scripts):
+    sys.path.insert(0, os.path.abspath(_repo_scripts))
+else:
+    sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import (
     write_json_atomic,
     locked_json_update,

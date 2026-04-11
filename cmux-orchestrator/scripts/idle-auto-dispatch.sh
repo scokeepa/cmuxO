@@ -118,7 +118,7 @@ try:
             except:
                 print("true")
         else:
-        print("true")
+            print("true")
 except:
     print("true")
 PY
@@ -149,53 +149,66 @@ PY
 get_surface_candidates() {
   local status_json="$1"
 
-  # Get list of valid surfaces from config
-  local valid_surfaces_json
-  valid_surfaces_json=$(get_valid_surfaces_from_config)
-  local valid_surfaces
-  valid_surfaces=$(printf '%s' "$valid_surfaces_json" | python3 -c "import json,sys; print(' '.join(json.loads(sys.stdin.read())))" 2>/dev/null || echo "")
-
-  python3 - "$status_json" "$valid_surfaces" <<'PY'
+  # Department lead 기반 후보 선별: /tmp/cmux-surface-map.json의 departments에서
+  # team_lead가 IDLE인 surface만 후보로 사용. Boss → 팀장만 통신 모델.
+  python3 - "$status_json" <<'PY'
 import json
+import os
 import sys
 
-payload = json.loads(sys.argv[1])
-surfaces = payload.get("surfaces", {})
-valid_surfaces = set(sys.argv[2].split()) if len(sys.argv) > 2 else set()
+# 1차: surface-map의 departments에서 IDLE team_lead 추출
+surface_map_file = "/tmp/cmux-surface-map.json"
 priority = {"high": 0, "mid": 1, "low": 2}
 
 def difficulty_for_ai(ai_name: str) -> str:
     normalized = ai_name.strip().lower()
-    if normalized == "codex":
+    if normalized in ("codex", "claude"):
         return "high"
-    if normalized in {"sonnet", "glm"}:
+    if normalized in ("sonnet", "gemini"):
         return "mid"
-    if normalized == "minimax":
+    if normalized in ("glm", "minimax"):
         return "low"
     return ""
 
-def sort_key(item):
-    sid, info = item
-    ai_name = str(info.get("ai", ""))
-    difficulty = difficulty_for_ai(ai_name)
-    try:
-        sid_key = int(str(sid))
-    except ValueError:
-        sid_key = 10**9
-    return (priority.get(difficulty, 99), sid_key)
+candidates = []
 
-for sid, info in sorted(surfaces.items(), key=sort_key):
-    if str(info.get("status", "")).upper() != "IDLE":
-        continue
-    # Filter: only dispatch to surfaces defined in orchestra-config
-    if valid_surfaces and str(sid) not in valid_surfaces:
-        continue
-    # ANE vision monitor check는 watcher-scan.py가 수행 (Python heredoc에서 제거)
-    ai_name = str(info.get("ai", "")).strip().lower()
-    difficulty = difficulty_for_ai(ai_name)
-    if not difficulty:
-        continue
-    print(f"{sid}\t{ai_name}\t{difficulty}")
+# departments 구조가 있으면 team_lead만 후보로
+if os.path.isfile(surface_map_file):
+    try:
+        with open(surface_map_file) as f:
+            smap = json.load(f)
+        departments = smap.get("departments", {})
+        for ws, dept in departments.items():
+            lead = dept.get("team_lead")
+            if not lead:
+                continue
+            if str(lead.get("status", "")).upper() != "IDLE":
+                continue
+            sid = lead["surface"]
+            ai = str(lead.get("ai", "")).strip().lower()
+            difficulty = difficulty_for_ai(ai)
+            if difficulty:
+                candidates.append((priority.get(difficulty, 99), int(sid), sid, ai, difficulty))
+    except Exception:
+        pass
+
+# departments가 없으면 fallback: eagle status에서 IDLE surface (기존 동작)
+if not candidates:
+    try:
+        payload = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+        surfaces = payload.get("surfaces", {})
+        for sid, info in surfaces.items():
+            if str(info.get("status", "")).upper() != "IDLE":
+                continue
+            ai = str(info.get("ai", "")).strip().lower()
+            difficulty = difficulty_for_ai(ai)
+            if difficulty:
+                candidates.append((priority.get(difficulty, 99), int(sid), sid, ai, difficulty))
+    except Exception:
+        pass
+
+for _, _, sid, ai, difficulty in sorted(candidates):
+    print(f"{sid}\t{ai}\t{difficulty}")
 PY
 }
 

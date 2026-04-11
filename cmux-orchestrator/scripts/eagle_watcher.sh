@@ -343,34 +343,32 @@ except: pass
 }
 
 function_auto_sync_config() {
-  # Auto-update orchestra-config.json surfaces section when screen detection
-  # finds a different AI than what config says. Prevents config staleness.
+  # Runtime surface 상태를 /tmp/cmux-surface-map.json에 기록.
+  # orchestra-config.json은 읽기 전용(presets만 정본) — 쓰지 않음.
   local variable_rows_file="$1"
-  local variable_config="$2"
+  local variable_config="$2"  # presets 참조용으로만 읽기
 
-  [ -f "$variable_config" ] || return 0
   [ -f "$variable_rows_file" ] || return 0
 
-  python3 - "$variable_rows_file" "$variable_config" <<'PY'
+  python3 - "$variable_rows_file" <<'PY'
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 rows_file = sys.argv[1]
-config_file = sys.argv[2]
+runtime_file = "/tmp/cmux-surface-map.json"
 
-if not os.path.isfile(config_file) or not os.path.isfile(rows_file):
-    sys.exit(0)
+# 기존 runtime state 로드 (있으면)
+surfaces = {}
+if os.path.isfile(runtime_file):
+    try:
+        with open(runtime_file) as f:
+            surfaces = json.load(f).get("surfaces", {})
+    except Exception:
+        pass
 
-try:
-    with open(config_file, encoding="utf-8") as f:
-        config = json.load(f)
-except Exception:
-    sys.exit(0)
-
-surfaces = config.get("surfaces", {})
 changed = False
-
 with open(rows_file, encoding="utf-8") as f:
     for line in f:
         parts = line.rstrip("\n").split("\t")
@@ -384,24 +382,24 @@ with open(rows_file, encoding="utf-8") as f:
             continue
 
         if sid in surfaces:
-            old_ai = surfaces[sid].get("ai", "")
-            if old_ai != screen_ai:
+            if surfaces[sid].get("ai", "") != screen_ai:
                 surfaces[sid]["ai"] = screen_ai
                 changed = True
             if screen_role and screen_role != surfaces[sid].get("role", ""):
                 surfaces[sid]["role"] = screen_role
                 changed = True
         else:
-            # New surface not in config — add it
             surfaces[sid] = {"ai": screen_ai, "role": screen_role or "worker"}
             changed = True
 
 if changed:
-    config["surfaces"] = surfaces
-    config["updated_at"] = __import__("datetime").datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    config["auto_synced"] = True
-    with open(config_file, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    runtime_state = {
+        "surfaces": surfaces,
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": "eagle_watcher_auto_sync"
+    }
+    with open(runtime_file, "w", encoding="utf-8") as f:
+        json.dump(runtime_state, f, ensure_ascii=False, indent=2)
 PY
 }
 

@@ -131,45 +131,64 @@ try:
 except FileNotFoundError:
     pass
 
-# Analyze
-valid = []
-missing_in_tree = []
-missing_in_config = []
-workspace_mismatch = []
+# Analyze — 새 모델: tree가 정본, department=workspace, team_lead=lead surface
+# config↔tree 일치는 더 이상 요구하지 않음. runtime state(surface-map) 구조를 검증.
+errors = []
+warnings = []
+tree_surfaces = set(tree_map.keys())
 
-all_sids = sorted(set(config_map.keys()) | set(tree_map.keys()), key=int)
+# 1. runtime surface-map 검증
+surface_map_file = "/tmp/cmux-surface-map.json"
+departments = {}
+if os.path.isfile(surface_map_file):
+    try:
+        with open(surface_map_file) as f:
+            smap = json.load(f)
+        departments = smap.get("departments", {})
+    except Exception:
+        warnings.append("surface-map.json parse error")
+else:
+    warnings.append("surface-map.json not found (watcher가 아직 실행되지 않았을 수 있음)")
 
-for sid in all_sids:
-    config_ws = config_map.get(sid)
-    tree_ws = tree_map.get(sid)
+# 2. department 구조 검증
+for ws, dept in departments.items():
+    lead = dept.get("team_lead")
+    if not lead:
+        errors.append(f"workspace:{ws} has no team_lead")
+    elif str(lead.get("surface", "")) not in tree_surfaces:
+        errors.append(f"workspace:{ws} team_lead surface:{lead.get('surface','')} not in cmux tree")
+    for member in dept.get("members", []):
+        if str(member.get("surface", "")) not in tree_surfaces:
+            warnings.append(f"workspace:{ws} member surface:{member.get('surface','')} not in cmux tree")
 
-    if config_ws is None:
-        missing_in_config.append(f"surface:{sid}")
-    elif tree_ws is None:
-        missing_in_tree.append(f"surface:{sid}")
-    elif config_ws != tree_ws:
-        workspace_mismatch.append({
-            "surface": f"surface:{sid}",
-            "config": f"workspace:{config_ws}",
-            "tree": f"workspace:{tree_ws}"
-        })
-    else:
-        valid.append(f"surface:{sid}")
+# 3. tree에 있지만 어디에도 속하지 않은 surface (control tower 제외)
+ct_surfaces = set()
+for sid in config_map:
+    ct_surfaces.add(sid)
+dept_surfaces = set()
+for dept in departments.values():
+    lead = dept.get("team_lead", {})
+    if lead:
+        dept_surfaces.add(str(lead.get("surface", "")))
+    for m in dept.get("members", []):
+        dept_surfaces.add(str(m.get("surface", "")))
+orphan = tree_surfaces - ct_surfaces - dept_surfaces
+if orphan:
+    warnings.append(f"orphan surfaces (no department): {', '.join(f'surface:{s}' for s in sorted(orphan))}")
 
 report = {
-    "valid": valid,
-    "missing_in_tree": missing_in_tree,
-    "missing_in_config": missing_in_config,
-    "workspace_mismatch": workspace_mismatch
+    "departments": len(departments),
+    "tree_surfaces": len(tree_surfaces),
+    "errors": errors,
+    "warnings": warnings,
 }
 
 print(json.dumps(report, indent=2, ensure_ascii=False))
 
-# Exit code: 0 if all valid, 1 if any issues
-if not missing_in_tree and not missing_in_config and not workspace_mismatch:
-    sys.exit(0)
-else:
+if errors:
     sys.exit(1)
+else:
+    sys.exit(0)
 PY
 }
 
