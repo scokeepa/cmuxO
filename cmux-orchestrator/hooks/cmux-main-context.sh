@@ -77,5 +77,43 @@ if os.path.exists(memory_file):
 
 msg = f'[CMUX-MAIN] 와쳐 캐시 주입 (scan: {int(scan_age)}초 전)\\n와쳐: {watcher}\\n메인: {main}\\nsurface: {total}개\\n{summary}{traits_section}{mem_section}'
 
+# Mentor context (L0/L1) 주입 — 600-900 token budget
+mentor_section = ''
+l0_file = os.path.expanduser('~/.claude/cmux-jarvis/mentor/context/L0.md')
+l1_file = os.path.expanduser('~/.claude/cmux-jarvis/mentor/context/L1.md')
+if os.path.exists(l1_file):
+    try:
+        l0 = open(l0_file).read().strip() if os.path.exists(l0_file) else ''
+        l1 = open(l1_file).read().strip()
+        combined = l0 + chr(10) + l1
+        if len(combined) <= 3600:
+            mentor_section = chr(10) + chr(10) + '[MENTOR CONTEXT]' + chr(10) + combined
+    except Exception:
+        pass
+
+# Coaching hint (반복 spam 방지)
+hint_section = ''
+hint_cache = '/tmp/cmux-mentor-last-hint.txt'
+signals_file = os.path.expanduser('~/.claude/cmux-jarvis/mentor/signals.jsonl')
+if os.path.exists(signals_file):
+    try:
+        with open(signals_file) as sf:
+            lines_list = sf.readlines()
+        if lines_list:
+            latest = json.loads(lines_list[-1].strip())
+            hint = latest.get('coaching_hint', '')
+            if hint:
+                prev_hint = ''
+                if os.path.exists(hint_cache):
+                    prev_hint = open(hint_cache).read().strip()
+                if hint != prev_hint:
+                    hint_section = chr(10) + '[MENTOR HINT] ' + hint
+                    with open(hint_cache, 'w') as hf:
+                        hf.write(hint)
+    except Exception:
+        pass
+
+msg = msg + mentor_section + hint_section
+
 print(json.dumps({'hookSpecificOutput': {'hookEventName': 'UserPromptSubmit', 'additionalContext': msg}}, ensure_ascii=False))
 " 2>/dev/null || exit 0

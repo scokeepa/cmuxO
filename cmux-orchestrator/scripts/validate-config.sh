@@ -102,6 +102,7 @@ parse_tree() {
 generate_report() {
   python3 - "$CONFIG_PARSED" "$TREE_PARSED" <<'PY'
 import json
+import os
 import sys
 
 config_file = sys.argv[1]

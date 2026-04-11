@@ -10,6 +10,13 @@
 | [architecture/directory-structure.md](architecture/directory-structure.md) | 디렉토리 구조 (Obsidian+로컬+스킬) | ~60 |
 | [architecture/phase-roadmap.md](architecture/phase-roadmap.md) | Phase 1/2/3 범위 + 파일 목록 | ~50 |
 | [architecture/cmux-start-integration.md](architecture/cmux-start-integration.md) | cmux-start 수정 상세 + config.json 스키마 | ~60 |
+| [architecture/mentor-lane.md](architecture/mentor-lane.md) | Mentor Lane 역할 정의 + Evolution Lane 구분 + Context Injection 정책 | ~90 |
+| [architecture/mentor-ontology.md](architecture/mentor-ontology.md) | 6축 기술 차원 + Harness Level + Fit Score + 안티패턴 (vibe-sunsang 흡수) | ~140 |
+| [architecture/jarvis-constitution.md](architecture/jarvis-constitution.md) | JARVIS 정체성 + Constitutional Principles + 공통 정책 (1.jpeg 흡수) | ~80 |
+| [architecture/jarvis-capability-targets.md](architecture/jarvis-capability-targets.md) | 5대 품질 목표 + Phase별 매핑 + Acceptance Criteria (2.jpeg 흡수) | ~90 |
+| [architecture/nudge-escalation-policy.md](architecture/nudge-escalation-policy.md) | 3단계 재촉 + 권한 매트릭스 + Cooldown + Audit Schema (badclaude 흡수) | ~130 |
+| [architecture/mentor-privacy-policy.md](architecture/mentor-privacy-policy.md) | 데이터 수집/저장/Retention/Redaction/사용자 권리 | ~110 |
+| [architecture/palace-memory-ssot.md](architecture/palace-memory-ssot.md) | Palace Memory 구조 + 4계층 로딩 + Signal/Drawer/Triple 스키마 | ~140 |
 
 ## 파이프라인 (정본)
 | 문서 | 책임 |

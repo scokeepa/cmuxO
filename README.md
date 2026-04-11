@@ -14,8 +14,11 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/skills-9-blue?style=flat-square" alt="9 Skills">
-  <img src="https://img.shields.io/badge/hooks-30-orange?style=flat-square" alt="30 Hooks">
-  <img src="https://img.shields.io/badge/files-183-green?style=flat-square" alt="183 Files">
+  <img src="https://img.shields.io/badge/hooks-31-orange?style=flat-square" alt="31 Hooks">
+  <img src="https://img.shields.io/badge/files-204-green?style=flat-square" alt="204 Files">
+  <img src="https://img.shields.io/badge/tests-58%20passed-brightgreen?style=flat-square" alt="58 Tests">
+  <img src="https://img.shields.io/badge/mentor%20scripts-6-blueviolet?style=flat-square" alt="6 Mentor Scripts">
+  <img src="https://img.shields.io/badge/arch%20docs-11-informational?style=flat-square" alt="11 Architecture Docs">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL-lightgrey?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="MIT License">
 </p>
@@ -343,6 +346,128 @@ Runs on macOS, Linux, and WSL. OS-specific commands are abstracted through `cmux
 
 ---
 
+## JARVIS Mentor Lane: AI Collaboration Harness Improvement
+
+Beyond self-evolving config, JARVIS now includes a **Mentor Lane** that observes your instruction quality and provides non-blocking coaching hints.
+
+### 6-Axis Skill Dimensions
+
+Measures AI collaboration effectiveness across 6 independent axes (adapted from vibe-sunsang):
+
+```
+  DECOMP  ████████░░  Task decomposition clarity
+  VERIFY  █████░░░░░  Verification & testing habits
+  ORCH    █████████░  Orchestration strategy selection
+  FAIL    ██████░░░░  Failure analysis & recovery
+  CTX     ████████░░  Context provision (paths, constraints)
+  META    ████░░░░░░  Self-reflection on instruction quality
+```
+
+### Harness Level System
+
+| Level | Stage | What it means |
+|-------|-------|---------------|
+| L1~L2 | Manual/Proactive | Basic requests, starting to provide context |
+| L3~L4 | Transition/Lead | File-level specificity, verification required |
+| L5~L6 | Design/Integration | Strategic tool combination, multi-agent experience |
+| L7 | Expansion | Community contribution, external impact |
+
+### Mentor Architecture
+
+```
+  User Instruction
+       |
+       v
+  Signal Engine ──> signals.jsonl (6-axis scores + antipatterns)
+       |
+       +──> L0/L1 Context (600-900 tokens) ──> /cmux prompt injection
+       |
+       +──> Coaching Hint (max 1/round, spam-protected)
+       |
+       +──> Weekly Report (TIMELINE.md longitudinal tracking)
+       |
+       v
+  Failure Classifier
+       |
+       +──> System config issue ──> Evolution Lane (Iron Law #1 approval)
+       +──> User instruction issue ──> Mentor Lane (soft coaching)
+       +──> Mixed ──> Compare proposal to User/CEO
+```
+
+### Privacy by Design
+
+| Default | Description |
+|---------|-------------|
+| Raw capture **OFF** | Only derived signals stored; raw conversation opt-in only |
+| Auto-redaction | API keys, passwords, tokens stripped before storage |
+| 90-day retention | Signals archived after 90 days; raw drawers 30-day default |
+| Local-only | No network transmission; all data in `~/.claude/cmux-jarvis/mentor/` |
+
+### Nudge/Escalation (L1 Implemented)
+
+When workers stall, the system can send role-appropriate nudges:
+
+| Target | Issuer | Level | Mechanism |
+|--------|--------|-------|-----------|
+| Worker | Team Lead | L1 | Non-blocking text reminder via `cmux send` |
+| Team Lead | Boss | L1 | Status request with evidence |
+| Boss | JARVIS (User approval) | L1 | Evidence bundle + recommendation |
+| Watcher | - | - | Evidence producer only, cannot execute nudges |
+
+Cooldown: 5 min per target. All nudges logged to `nudge-audit.jsonl`.
+
+---
+
+## Performance Indicators
+
+### Orchestration Efficiency
+
+```
+Sequential (1 AI):  ========================== 50 min
+Parallel (3 AIs):   ========= 17 min  (-66%)
+With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
+```
+
+### System Metrics
+
+| Metric | Value | Description |
+|--------|-------|-------------|
+| Control tower boot | ~3 sec | `/cmux-start` to Boss+Watcher+JARVIS ready |
+| Watcher scan cycle | 20 sec | 4-layer (Eagle+OCR+VisionDiff+Pipe-pane) |
+| DONE re-verification | 30 sec | Mandatory recheck before confirming completion |
+| Hook overhead | <50 ms | Per PreToolUse gate check |
+| Context injection | <100 ms | L0/L1 mentor context + coaching hint |
+| Nudge cooldown | 300 sec | Per-target rate limit |
+
+### Test Coverage
+
+```
+  test_cmux_utils        ████████████████  9 tests   Core utilities
+  test_hooks             ██████████        5 tests   Hook enforcement
+  test_mentor_signal     ██████████        5 tests   6-axis signal engine
+  test_palace_memory     ████████████      6 tests   L0/L1 context generation
+  test_redaction         ████████████████  8 tests   Privacy redaction
+  test_context_injection ██████████        5 tests   Prompt injection logic
+  test_nudge             ██████████████    7 tests   Nudge L1 + cooldown
+  test_mentor_report     ████████████      6 tests   Report generation
+  test_failure_class.    ██████████████    7 tests   Failure classification
+  ─────────────────────────────────────────────────
+  Total                                   58 tests  ALL PASSED
+```
+
+### Codebase Scale
+
+| Component | Files | Lines | Purpose |
+|-----------|-------|-------|---------|
+| cmux-orchestrator | 82 | ~8K | Boss orchestration, hooks, dispatch |
+| cmux-watcher | 12 | ~3K | 4-layer monitoring engine |
+| cmux-jarvis | 35 | ~5K | Evolution + Mentor + Memory |
+| Mentor scripts (new) | 6 | 1,193 | Signal, Memory, Redactor, Nudge, Report, Classifier |
+| Architecture docs | 11 | ~1,200 | JARVIS architecture SSOT |
+| Tests | 9 | ~800 | 58 unit tests |
+
+---
+
 ## Installation
 
 ### Prerequisites
@@ -401,10 +526,11 @@ cmux-orchestrator-watcher-pack/           183 files
 |   |-- commands/             (2)          cmux-watcher-mute
 |   +-- references/           (4)          Monitoring protocols
 |
-|-- cmux-jarvis/                           JARVIS -- self-evolving config engine
+|-- cmux-jarvis/                           JARVIS -- evolution + mentor intelligence
 |   |-- SKILL.md
 |   |-- hooks/                (6)          GATE, FileChanged, Compact
-|   |-- scripts/              (19)         Evolution, verify, maintenance, plugins
+|   |-- scripts/              (21)         Evolution, verify, mentor signal/memory/
+|   |   |                                  report/nudge/classifier/redactor
 |   |-- references/           (7)          Iron laws, red flags, metrics
 |   |-- agents/               (1)          evolution-worker
 |   +-- skills/               (2)          Evolution, visualization sub-skills
@@ -417,16 +543,46 @@ cmux-orchestrator-watcher-pack/           183 files
 |-- cmux-uninstall/                        /cmux-uninstall
 |
 |-- docs/                                  Design documents
-|   |-- jarvis/               (33)         JARVIS architecture + research
+|   |-- jarvis/               (40)         JARVIS architecture + mentor docs + research
 |   +-- issues/               (1)          Known issues
-+-- tests/                                 Hook tests
++-- tests/                    (9)          58 unit tests (hooks + mentor + nudge)
 ```
 
 ---
 
 ## Changelog
 
-### 2026-04-11
+### 2026-04-11 (AGI Mentor Integration)
+
+**P0: Runtime Bug Fixes**
+- **validate-config.sh `import os` fix** -- `NameError: name 'os' is not defined` resolved. JSON report now outputs correctly in no-cmux/sandbox/cmux-socket environments
+- **watcher-scan.py stale AI detection fix** -- `get_available_tools()` now uses `shutil.which()` runtime check instead of stale `ai-profile.json.detected` field. Correctly detects codex/gemini/claude
+- **orchestra-config.json deprecation notice** -- Runtime fields (surfaces, main_surface, watcher_surface) marked deprecated; SSOT is `/tmp/cmux-surface-map.json` + `cmux tree --all`
+
+**P1: JARVIS Architecture Documents (7 files)**
+- **mentor-lane.md** -- Mentor Lane role definition. Lane M (coaching) separated from Lane B (evolution). Context injection policy: L0+L1 600-900 tokens, max 1 hint/round
+- **mentor-ontology.md** -- 6-axis skill dimensions (DECOMP/VERIFY/ORCH/FAIL/CTX/META) adapted from vibe-sunsang. Harness Level L1-L7, Fit Score formula, Gate conditions, antipattern catalog
+- **jarvis-constitution.md** -- Unified JARVIS identity + Constitutional Principles (from referense/1.jpeg as product principles, not external facts) + Iron Laws reference + common policy fields
+- **jarvis-capability-targets.md** -- 5 quality targets (Security/Engineering/Alignment/Calibration/Visual Reasoning) from referense/2.jpeg. Phase 1/2/3 acceptance criteria
+- **nudge-escalation-policy.md** -- 3-level nudge system (L1 text/L2 interrupt/L3 reassign). Permission matrix, cooldown/throttle, audit schema. Watcher = evidence only. badclaude patterns reinterpreted as session-scoped policy
+- **mentor-privacy-policy.md** -- Raw capture OFF by default. Storage separation, 90-day retention, API key/password/token auto-redaction, user opt-out/delete/export rights
+- **palace-memory-ssot.md** -- Palace memory substrate: wing/room/drawer mapping to cmux entities. L0-L3 loading policy. Signal/Drawer/Triple schemas. ChromaDB/MCP = Phase 3+ optional
+
+**P3: Mentor Code Implementation (6 scripts, 1,193 lines)**
+- **jarvis_mentor_signal.py** -- 6-axis signal engine. emit/query/tail/prune CLI. JSONL append with fcntl locking. Auto-detects antipatterns, generates coaching hints, enforces `insufficient_evidence` when confidence < 0.5 or evidence < 3
+- **jarvis_palace_memory.py** -- L0/L1 context generator. L0 identity (~100 tokens), L1 essential story from signals (MAX_CHARS=3200). Token budget enforcement (900 max). Empty signals = "insufficient observation" message
+- **mentor_redactor.py** -- 5-pattern sensitive data redaction (API keys, passwords, Bearer tokens, Authorization headers, secrets). File paths preserved
+- **jarvis_nudge.py** -- L1 text nudge via `cmux send`. Watcher execution blocked. Cooldown 5 min/target. Rate-limited events logged. Audit JSONL with full evidence trail
+- **jarvis_mentor_report.py** -- Periodic harness improvement report. 6-axis table + trends + antipatterns + Gate conditions + next-step suggestions. TIMELINE.md longitudinal tracking. Defers if signals < 3
+- **jarvis_failure_classifier.py** -- Failure root cause classifier: system config (evolution rollback rate) vs user instruction (antipattern frequency) vs mixed. Iron Law #1 reminder for system classification
+
+**P4: Context Injection + Nudge Integration**
+- **cmux-main-context.sh mentor inject** -- `/cmux` prompt now includes L0/L1 mentor context + latest coaching hint. Token budget 3600 chars enforced. Hint spam prevention via `/tmp/cmux-mentor-last-hint.txt` cache
+
+**Testing: 14 → 58 tests (+44)**
+- test_mentor_signal (5), test_palace_memory (6), test_redaction (8), test_context_injection (5), test_nudge (7), test_mentor_report (6), test_failure_classifier (7)
+
+### 2026-04-11 (Earlier)
 
 - **Orchestrator SKILL.md rewrite** -- Boss operational directives (empty 11-line shell -> full 200+ line guide)
 - **Department = workspace structure** -- Department = sidebar tab (workspace), Team Lead = lead surface (Claude Code), Workers = panes within same workspace created by Team Lead

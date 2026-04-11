@@ -16,6 +16,7 @@ Output: JSON with prioritized alerts + recommended actions.
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -278,7 +279,8 @@ def get_available_tools() -> dict:
     try:
         profiles = load_ai_profiles()
         for name, prof in profiles.items():
-            if prof.get("detected"):
+            cli_cmd = prof.get("cli_command", "")
+            if cli_cmd and shutil.which(cli_cmd):
                 tools["ai_clis"].append(name)
     except Exception:
         pass
