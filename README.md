@@ -1,459 +1,372 @@
-# cmux-orchestrator-watcher-pack
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/cmux-orchestrator-4f46e5?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8+PHBhdGggZD0iTTggMTJoOE0xMiA4djgiLz48L3N2Zz4=">
+    <img alt="cmux orchestrator" src="https://img.shields.io/badge/cmux-orchestrator-4f46e5?style=for-the-badge">
+  </picture>
+</p>
 
-**AI 다중 자동 협업 플랫폼** — 한 명의 지시로 여러 AI가 동시에 일하고, 감시하고, 스스로 개선합니다.
+<h1 align="center">cmux orchestrator + watcher pack</h1>
 
-`9 Skills` `28 Hooks` `6 AI Models` `164 Files` `macOS + Linux + WSL`
+<p align="center">
+  <strong>AI Multi-Agent Orchestration Platform for Claude Code</strong><br>
+  One command. Multiple AIs. Parallel execution. Self-healing.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/skills-9-blue?style=flat-square" alt="9 Skills">
+  <img src="https://img.shields.io/badge/hooks-30-orange?style=flat-square" alt="30 Hooks">
+  <img src="https://img.shields.io/badge/files-183-green?style=flat-square" alt="183 Files">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="MIT License">
+</p>
 
 ---
 
-## 이게 뭔가요?
+## What is this?
 
-Claude Code를 하나만 쓰면 **한 번에 하나의 작업**만 가능합니다. 파일 10개를 수정해야 하면 순서대로 하나씩.
+Claude Code runs **one task at a time**. Need to modify 10 files? You wait in line.
 
-이 시스템은 **여러 AI를 동시에 부려서** 병렬로 작업합니다. 사용자(CEO)가 "로그인 기능 만들어"라고 하면:
-
-1. **사장(Main)** 이 작업을 쪼개서 팀을 편성합니다
-2. **팀장/팀원** 들이 각자 맡은 부분을 동시에 코딩합니다
-3. **와쳐(Watcher)** 가 멈춤/에러를 실시간 감시합니다
-4. **자비스(JARVIS)** 가 반복 문제를 감지하여 설정을 자동 개선합니다
+This system orchestrates **multiple AIs in parallel** through tmux, with real-time monitoring and self-healing configuration.
 
 ```
-기존: 사용자 → Claude 1개 → 순차 작업 (50분)
-이것: 사용자 → 사장 → 팀장 3명 → 병렬 작업 (17분) + 자동 감시 + 자동 최적화
+Before:  You --> Claude (1) --> Sequential work .......... 50 min
+After:   You --> Boss --> 3 Workers in parallel .... 17 min  (-66%)
+                         + Watcher (monitoring)
+                         + JARVIS (self-optimization)
 ```
 
----
+**How it works:**
 
-## 왜 필요한가?
-
-|  | Claude Code 단독 | 수동 tmux 멀티세션 | **이 시스템** |
-|--|-----------------|-------------------|-------------|
-| **시작** | 즉시 | 5-10분 (수동 pane 생성) | **1초** (`/cmux-start`) |
-| **병렬 작업** | 불가 (1개 세션) | 가능하지만 수동 관리 | **자동 분배 + 추적** |
-| **에러 감지** | 사용자가 직접 확인 | 수동 화면 체크 | **4계층 자동 감시** |
-| **멈춤 복구** | 수동 재시작 | 수동 재시작 | **3회 반복 → 자동 설정 개선** |
-| **설정 최적화** | 시행착오 | 불가능 | **JARVIS가 분석 → 제안 → 적용** |
-| **롤백** | 없음 | 없음 | **원자적 백업 + 즉시 복원** |
-| **컨텍스트 보존** | `/clear` 시 유실 | pane 전환 시 유실 | **자동 보존 + 재주입** |
-| **긴급 정지** | 수동 종료 | 수동 종료 | **`/cmux-pause` 즉시 전체 정지 + 재개** |
+| Step | What happens |
+|------|-------------|
+| `/cmux-start` | Control tower spins up in 3 seconds (Boss + Watcher + JARVIS) |
+| You say the task | Boss decomposes work and dispatches to workers in parallel |
+| Workers code | Each AI works independently on its own tmux pane |
+| Watcher monitors | 4-layer scan detects IDLE/ERROR/STALL every 20 seconds |
+| Boss collects | Results gathered, code reviewed (Sonnet agent), committed |
+| JARVIS evolves | Repeated failures trigger automatic config improvements |
 
 ---
 
-## 아키텍처
+## Architecture
 
 ```mermaid
 graph TB
-    User["사용자 (CEO)"]
+    User["CEO (You)"]
     
-    subgraph ControlTower["컨트롤 타워"]
-        Main["사장 (Main/COO)<br/>작업 분배 + 결과 취합 + 커밋"]
-        Watcher["와쳐 (Watcher)<br/>실시간 감시 + 리소스 체크"]
-        Jarvis["자비스 (JARVIS)<br/>User 직속 참모<br/>설정 진화 + 정책 변경 + 문제 즉각 해결"]
+    subgraph CT["Control Tower"]
+        Main["Boss (Main/COO)\nDispatch + Collect + Commit"]
+        Watcher["Watcher\nReal-time Monitoring"]
+        Jarvis["JARVIS\nSelf-evolving Config Engine"]
     end
     
-    subgraph Dept1["부서 1: Frontend"]
-        TL1["팀장 (Codex)"]
-        M1["팀원 (GLM)"]
-        M2["팀원 (MiniMax)"]
+    subgraph D1["Dept 1: Frontend"]
+        TL1["Lead (Codex)"]
+        W1["Worker (GLM)"]
+        W2["Worker (MiniMax)"]
     end
     
-    subgraph Dept2["부서 2: Backend"]
-        TL2["팀장 (Claude)"]
-        M3["팀원 (Codex)"]
+    subgraph D2["Dept 2: Backend"]
+        TL2["Lead (Claude)"]
+        W3["Worker (Codex)"]
     end
     
-    User <-->|"설정 진화 + 정책 변경"| Jarvis
-    User -->|"프로젝트 작업 지시"| Main
-    Main -->|"부서 편성 + 배정"| TL1
-    Main -->|"부서 편성 + 배정"| TL2
-    TL1 --> M1
-    TL1 --> M2
-    TL2 --> M3
-    Jarvis -.->|"변경사항 전파"| Main
-    Jarvis -.->|"변경사항 전파"| Watcher
-    Jarvis -.->|"정책 전파"| TL1
-    Jarvis -.->|"정책 전파"| TL2
-    Watcher -->|"상태 보고"| Main
-    Watcher -.->|"감시"| Dept1
-    Watcher -.->|"감시"| Dept2
+    User <-->|"config evolution"| Jarvis
+    User -->|"project task"| Main
+    Main -->|"dispatch"| TL1
+    Main -->|"dispatch"| TL2
+    TL1 --> W1 & W2
+    TL2 --> W3
+    Jarvis -.->|"propagate"| Main & Watcher
+    Watcher -->|"status report"| Main
+    Watcher -.->|"monitor"| D1 & D2
 ```
 
-**3계층 구조:**
-
-| 계층 | 구성 | 역할 |
-|------|------|------|
-| **CEO 직속** | 자비스 (JARVIS) | User와 직접 소통. 설정 진화 + 정책 변경 → Main/Watcher/팀장에 전파 |
-| **컨트롤 타워** | 사장 + 와쳐 | 프로젝트 작업 지휘 + 실시간 감시 |
-| **부서 (Department)** | 팀장 + 팀원 N명 | 팀장이 자율적으로 팀원 pane 생성 (난이도별 모델 선택) |
-
----
-
-## 워크플로우
-
-```mermaid
-sequenceDiagram
-    participant U as 사용자
-    participant M as 사장(Main)
-    participant W as 와쳐(Watcher)
-    participant J as 자비스(JARVIS)
-    participant T as 팀장/팀원
-
-    U->>M: "로그인 기능 만들어"
-    M->>M: 작업 분해 (API + UI + 테스트)
-    M->>T: cmux send "API 구현해"
-    M->>T: cmux send "UI 구현해"
-    M->>T: cmux send "테스트 작성해"
-    
-    loop 20초마다
-        W->>T: 상태 스캔 (WORKING/IDLE/ERROR)
-        W->>M: 상태 보고 + 관리 세션 현황
-    end
-    
-    T->>M: DONE (작업 완료)
-    M->>M: 코드 리뷰 (Sonnet 에이전트)
-    M->>M: git commit + push
-    
-    J->>J: 메트릭 분석 (에러율, 멈춤 횟수)
-    J->>U: "설정 개선 제안: [승인] [보류] [폐기]"
-```
-
----
-
-## 실전 예시: "로그인 기능 추가"
-
-### 기존 방식 (순차, 50분)
-
-```
-00:00  Claude에 "API 설계" 지시          → 15분
-00:15  Claude에 "인증 모듈 구현" 지시     → 20분
-00:35  Claude에 "테스트 작성" 지시        → 10분
-00:45  직접 리뷰 + 커밋                   →  5분
-───────────────────────────────────────
-총 50분 (순차, 1개 AI)
-```
-
-### 이 시스템 (병렬, 17분)
-
-```
-00:00  /cmux-start (컨트롤 타워 생성)     →  3초
-00:01  "로그인 기능 만들어"
-       사장이 자동으로:
-       ├─ Codex에 "API 설계"      ─┐
-       ├─ GLM에 "인증 모듈 구현"   ─┼─ 동시 진행 (12분)
-       └─ MiniMax에 "테스트 작성"  ─┘
-00:13  와쳐: "3개 surface DONE 확인"
-00:14  사장: 코드 리뷰 (Sonnet)           →  2분
-00:16  사장: git commit + push            →  1분
-───────────────────────────────────────
-총 17분 (병렬, 3개 AI) = 66% 시간 절약
-```
-
----
-
-## 9개 스킬 + 커맨드
-
-### 메인 스킬
-
-| 슬래시 커맨드 | 이름 | 역할 | 실행 위치 |
-|--------------|------|------|----------|
-| `/cmux-start` | 시작 | 컨트롤 타워 생성 + 기존 세션 포함 질문 | 아무 세션 |
-| `/cmux-stop` | 종료 | 부서 선택적 닫기 + 상태 정리 | Main |
-| `/cmux-orchestrator` | 사장 | 부서 편성 + 작업 분배 + 결과 취합 | Main |
-| `/cmux-watcher` | 와쳐 | 실시간 감시 + 에러/멈춤 감지 + 관리 세션 현황 | Watcher |
-| `/cmux-config` | 설정 | AI 프로파일 관리 (감지/추가/제거) | 아무 세션 |
-| `/cmux-help` | 도움말 | 명령어 레퍼런스 | 아무 세션 |
-| `/cmux-pause` | 정지 | 긴급 정지 (와쳐 포함 전체 일시정지) + 재개 | Main |
-| `/cmux-uninstall` | 제거 | 완전 제거 + 백업 롤백 | 아무 세션 |
-| `cmux-jarvis` | 자비스 | 설정 진화 엔진 (자동 호출, 슬래시 커맨드 없음) | JARVIS |
-
-### 추가 커맨드
-
-| 커맨드 | 역할 |
-|--------|------|
-| `/cmux-watcher-mute` | 와쳐 알림 on/off 토글 (스캔은 계속, 알림만 끔) |
-
----
-
-## 와쳐 (Watcher) 상세
-
-와쳐는 오케스트레이션의 **감시 전담 AI**입니다.
-
-### 4계층 감시 시스템
-
-| 계층 | 방식 | 감지 대상 |
-|------|------|----------|
-| **Eagle** | 텍스트 기반 상태 파싱 | IDLE/WORKING/ERROR/DONE |
-| **OCR** | Apple Vision 스크린 캡처 | STUCK, 에러 메시지 |
-| **Vision Diff** | 이전/현재 화면 비교 | 화면 변동 없음 (stall) |
-| **Pipe-pane** | tmux 출력 직접 읽기 | Rate limit, context 초과 |
-
-### 핵심 기능
-
-- **관리 세션 현황**: 각 surface의 세션 타이틀 + 상태를 실시간 추적, 변동 감지 시 사장에게 보고
-- **IDLE 디바운스**: DONE 보고 후 30초 유예 + surface별 최소 120초 간격 리마인드
-- **Mute 모드**: `/cmux-watcher-mute`로 알림만 끄고 스캔은 계속 유지
-- **Pause 연동**: `/cmux-pause` 시 와쳐도 자동 일시정지, 5초마다 재개 확인
-- **역할 필터링**: Main/Watcher/JARVIS는 감시 대상에서 제외 (워커만 감시)
-
----
-
-## JARVIS 진화 엔진
-
-반복되는 문제를 감지하고 설정을 자동 개선합니다.
-
-```mermaid
-flowchart LR
-    A["감지<br/>에러 3회+<br/>멈춤 반복"] --> B["분석<br/>근본 원인<br/>범위 잠금"]
-    B --> C["승인<br/>사용자에게<br/>제안"]
-    C -->|승인| D["백업<br/>원자적 저장<br/>LOCK 생성"]
-    C -->|보류/폐기| X["기록 후 종료"]
-    D --> E["구현<br/>Worker가<br/>변경 실행"]
-    E --> F["검증 + 반영<br/>증거 확인<br/>KEEP/DISCARD"]
-    F -->|KEEP| G["적용<br/>JSON Patch<br/>완료"]
-    F -->|DISCARD| H["롤백<br/>백업 복원"]
-```
-
-### Iron Laws (불변 법칙)
-
-| # | 법칙 | 의미 |
-|---|------|------|
-| 1 | **사용자 승인 없이 진화 없음** | 모든 설정 변경은 사용자가 [승인]해야 실행 |
-| 2 | **예상 결과 없이 구현 없음** | 변경 전 "이걸 하면 어떻게 되는지" 문서화 필수 |
-| 3 | **검증 증거 없이 완료 없음** | 변경 후 실제로 개선되었는지 증거 확인 필수 |
-
-### 안전 장치
-
-- **연속 진화 제한**: 최대 3회 (무한 루프 방지)
-- **일일 진화 제한**: 최대 10회
-- **LOCK 파일**: 동시 진화 방지 (TTL 60분)
-- **2세대 백업**: 즉시 롤백 가능
-
----
-
-## 28개 Hook 시스템
-
-모든 hook은 **오케스트레이션 모드에서만** 활성화됩니다. 일반 사용 시 간섭 없음.
-
-### 구성 (28개)
-
-| 소속 | 개수 | 주요 hook |
-|------|------|----------|
-| **오케스트레이터** | 20 | workflow-state-machine, completion-verifier, control-tower-guard, stop-guard, init-enforcer, no-stall-enforcer, idle-reuse-enforcer, read-guard 등 |
-| **JARVIS** | 6 | jarvis-gate, settings-backup, file-changed, session-start, pre/post-compact |
-| **와쳐** | 2 | watcher-activate, watcher-session |
-
-### 이벤트별 분류
-
-| 이벤트 | 개수 | 역할 | 강제 수준 |
-|--------|------|------|----------|
-| **PreToolUse** | 13 | 도구 실행 전 차단/허용 | L0 (물리적 차단) |
-| **PostToolUse** | 4 | 실행 후 모니터링 | L2 (경고) |
-| **UserPromptSubmit** | 3 | 프롬프트 전 컨텍스트 주입 | L2 |
-| **SessionStart** | 3 | 세션 시작 시 설정 로드 | L1 |
-| **Stop** | 1 | 세션 종료 시 정리 | L1 |
-| **FileChanged** | 1 | 파일 변경 즉시 감지 (JARVIS) | 트리거 |
-| **ConfigChange** | 1 | settings.json 보호 (JARVIS) | L0 |
-| **PreCompact / PostCompact** | 2 | 컨텍스트 보존 (JARVIS) | 정보 |
-
-### 4티어 강제 체계
-
-| 티어 | 메커니즘 | 예시 |
-|------|---------|------|
-| **L0: 물리적 차단** | PreToolUse hook이 도구 실행 자체를 막음 | 미검증 상태에서 git commit 차단 |
-| **L1: 자동 실행** | cmux 이벤트 후 자동 스크립트 | send-key 후 eagle 상태 자동 갱신 |
-| **L2: 경고 에스컬레이션** | systemMessage로 경고 주입 | IDLE surface 3개+ 방치 시 알림 |
-| **L3: 자가 점검** | SKILL.md 체크리스트 | 라운드 종료 전 GATE 0-7 확인 |
-
-### 스마트 필터링
-
-hook은 **역할 기반으로 적용 범위를 구분**합니다:
-- **워크플로우 상태 머신**: Main(사장) surface에서만 적용. 독립 세션/와쳐/JARVIS/워커는 자유.
-- **stop-guard**: 오케스트레이션이 배정한 워커 surface만 보호. Main/Watcher/JARVIS는 면제.
-- **컨트롤 타워 가드**: `shlex.split()` 토큰 분석으로 실제 `cmux close-workspace` 명령만 차단 (echo/grep 등 간접 참조는 통과).
-
----
-
-## 크로스플랫폼 호환성
-
-macOS, Linux, WSL 3개 환경을 모두 지원합니다.
-
-### cmux_compat 유틸리티 데먼
-
-OS별로 다른 명령어(`grep -P`, `date -j`, `stat -f` 등)를 python3 기반 데먼으로 통일합니다.
-
-| 명령어 | 대체 대상 | 용도 |
-|--------|----------|------|
-| `json-get/set/query` | grep/sed/awk JSON 파싱 | JSON 값 추출/설정/쿼리 |
-| `epoch` | `date -j -f` (macOS 전용) | ISO 8601 → Unix timestamp |
-| `stat-mtime/size` | `stat -f` (macOS) / `stat -c` (Linux) | 파일 정보 |
-| `grep-pcre` | `grep -oP` (GNU grep 전용) | PCRE 정규식 |
-| `readlink` | `readlink -f` (Linux 전용) | 심링크 해석 |
-| `sed-inplace` | `sed -i ''` (macOS) / `sed -i` (Linux) | 파일 내 치환 |
-| `os-detect` | `uname` + `/proc/version` | OS/WSL/아키텍처 감지 |
-
-**동작 방식:**
-- `/cmux-start` 시 데먼 자동 시작 (`/tmp/cmux-compat.sock`)
-- 셸 스크립트에서 `source cmux_compat.sh` 후 `compat_json_get`, `compat_epoch` 등 함수 사용
-- 데먼 미실행 시 자동으로 `python3 --inline` 폴백
-
----
-
-## AI 프로파일
-
-6종 AI를 자동 감지하고 특성에 맞게 배치합니다.
-
-| AI | CLI 명령 | 특성 | 적합한 역할 |
-|----|---------|------|-----------|
-| **Claude** | `claude` | 범용, 고품질 | 사장(COO), 팀장 |
-| **Codex** | `codex` | 빠른 코딩, 샌드박스 | 팀원 (cmux CLI 불가) |
-| **OpenCode** | `cco` | 경량, 빠름 | 팀원 |
-| **GLM** | `ccg2` | 짧은 프롬프트 전용 | 팀원 (200자 이내) |
-| **Gemini** | `gemini` | 2단계 전송 필요 | 팀원 (/clear + 작업 분리) |
-| **MiniMax** | `ccm` | 균형, 비용 효율 | 팀원 |
-
-```bash
-/cmux-config detect    # AI 자동 감지
-/cmux-config add codex # 수동 추가
-/cmux-config remove glm # 수동 제거
-```
-
----
-
-## 설치
-
-### 전제 조건
-
-| 요구사항 | 확인 방법 | 비고 |
-|---------|----------|------|
-| cmux 0.62+ | `cmux --version` | 필수 |
-| Claude Code 2.1+ | `claude --version` | 필수 |
-| Python 3.9+ | `python3 --version` | 필수 |
-
-### 설치 (1분)
-
-```bash
-bash install.sh
-```
-
-설치 스크립트가 자동으로:
-1. **OS 감지** — macOS/Linux/WSL 판별, WSL 경고 표시
-2. **사전 검증** — cmux, python3 버전 확인
-3. **백업** — 기존 settings.json + skill 백업
-4. **복사** — 9개 skill → `~/.claude/skills/`
-5. **Hook 등록** — 28개 hook symlink + settings.json 등록
-6. **AI 감지** — 설치된 AI CLI 자동 탐색
+<table>
+<tr><th>Layer</th><th>Components</th><th>Role</th></tr>
+<tr><td><b>CEO Staff</b></td><td>JARVIS</td><td>Direct user liaison. Config evolution + policy changes</td></tr>
+<tr><td><b>Control Tower</b></td><td>Boss + Watcher</td><td>Task orchestration + real-time surveillance</td></tr>
+<tr><td><b>Departments</b></td><td>Lead + N Workers</td><td>Autonomous execution with model-appropriate assignments</td></tr>
+</table>
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. 설치
+# Install (1 minute)
 bash install.sh
 
-# 2. Claude Code에서 시작
+# Start orchestration
 /cmux-start
-# → 컨트롤 타워 생성 (사장 + 와쳐 + 자비스)
-# → 기존 세션 포함 여부 질문
 
-# 3. 작업 지시
-"프로젝트에 로그인 기능을 추가해줘"
-# → 사장이 자동으로 부서 편성 → 병렬 작업 시작
+# Give a task
+"Add login functionality to the project"
+# --> Boss auto-decomposes --> Workers execute in parallel
 
-# 4. 운영 중
-/cmux-watcher-mute     # 와쳐 알림 토글
-/cmux-pause            # 긴급 전체 정지
-/cmux-pause resume     # 재개
+# Operations
+/cmux-pause            # Emergency stop (all AIs freeze)
+/cmux-pause resume     # Resume
+/cmux-watcher-mute     # Toggle watcher notifications
 
-# 5. 종료
+# Shutdown
 /cmux-stop
-# → [전부 닫기] / [컨트롤 타워만] / [그대로 두기]
 ```
 
 ---
 
-## 보안
+## 9 Skills
 
-| 메커니즘 | 구현 | 보호 대상 |
-|---------|------|----------|
-| **주입 방지** | `shlex.quote()` 전체 적용, `shell=True` 미사용 | 셸 메타문자 공격 |
-| **원자적 백업** | 설치/진화 시 백업 → 복사 (덮어쓰기 금지) | settings.json 손상 |
-| **GATE 이중 강제** | SKILL.md 규칙 + PreToolUse hook | 미승인 설정 변경 |
-| **ConfigChange 차단** | exit 2로 변경 자체 방지 | GATE hook 삭제 시도 |
-| **LOCK 3조건** | LOCK + phase=applying + evidence 동시 충족 | 위조 진화 적용 |
-| **컨트롤 타워 보호** | shlex 토큰 분석으로 close-workspace만 차단 | Main/Watcher 종료 |
-| **역할 필터링** | `cmux identify` + roles.json로 surface 식별 | 독립 세션 간섭 방지 |
-| **모드 게이트** | `/cmux-start` 전에는 28개 hook 비활성 | 비오케스트레이션 세션 간섭 |
-
----
-
-## 프로젝트 구조
-
-```
-cmux-orchestrator-watcher-pack/        164 파일
-├── install.sh                          원커맨드 설치 (OS 감지 + WSL 경고)
-├── README.md
-│
-├── cmux-orchestrator/                  사장(Main) — 지휘 + 분배 + 취합
-│   ├── SKILL.md                        오케스트레이션 지침
-│   ├── hooks/              (20)        워크플로우 강제 hook
-│   ├── scripts/            (34)        eagle_watcher, dispatcher, cmux_compat 등
-│   ├── references/         (16)        아키텍처/패턴 참조 문서
-│   ├── agents/             (3)         cmux-reviewer, cmux-git, cmux-security
-│   ├── commands/           (2)         커맨드 정의
-│   └── config/             (2)         ai-profile.json, orchestra-config.json
-│
-├── cmux-watcher/                       와쳐 — 실시간 감시
-│   ├── SKILL.md
-│   ├── hooks/              (2)
-│   ├── scripts/            (4)         watcher-scan.py (55KB, 통합 스캐너)
-│   ├── commands/           (2)         cmux-watcher-mute 포함
-│   └── references/         (4)         모니터링 프로토콜
-│
-├── cmux-jarvis/                        자비스 — 설정 진화 엔진
-│   ├── SKILL.md
-│   ├── hooks/              (6)         GATE, FileChanged, Compact 등
-│   ├── scripts/            (6)         evolution, verify, maintenance, plugins
-│   ├── references/         (7)         iron-laws, red-flags, metrics 등
-│   ├── agents/             (1)         evolution-worker
-│   └── skills/             (2)         evolution, visualization 서브스킬
-│
-├── cmux-start/                         /cmux-start (compat 데먼 자동 시작)
-├── cmux-stop/                          /cmux-stop (compat 데먼 자동 종료)
-├── cmux-config/                        /cmux-config
-├── cmux-help/                          /cmux-help
-├── cmux-pause/                         /cmux-pause
-├── cmux-uninstall/                     /cmux-uninstall
-│
-├── docs/
-│   ├── jarvis/             (33)        JARVIS 설계 문서
-│   └── issues/             (1)         알려진 이슈
-└── tests/                              Hook 테스트
-```
+| Command | Name | What it does |
+|---------|------|-------------|
+| `/cmux-start` | Start | Spin up control tower + detect existing sessions |
+| `/cmux-stop` | Stop | Selective shutdown (departments / control tower / all) |
+| `/cmux-orchestrator` | Boss | Decompose + dispatch + collect + commit |
+| `/cmux-watcher` | Watcher | 4-layer monitoring + error/stall detection |
+| `/cmux-config` | Config | AI profile management (detect / add / remove) |
+| `/cmux-help` | Help | Command reference |
+| `/cmux-pause` | Pause | Emergency freeze + resume |
+| `/cmux-uninstall` | Uninstall | Full removal + backup rollback |
+| `cmux-jarvis` | JARVIS | Self-evolving config engine (auto-invoked) |
 
 ---
 
-## 문서
+## Watcher: 4-Layer Monitoring
 
-| 경로 | 파일 수 | 내용 |
-|------|---------|------|
-| `cmux-orchestrator/references/` | 16 | 아키텍처, 패턴, 게이트, 에러 복구, Rate limit |
-| `cmux-jarvis/references/` | 7 | Iron Laws, Red Flags, 메트릭 사전 |
-| `cmux-watcher/references/` | 4 | 모니터링 프로토콜, Vision Diff, P2P 통신 |
-| `docs/jarvis/architecture/` | 4 | 핵심 원칙, 디렉토리 구조, Phase 로드맵 |
-| `docs/jarvis/pipeline/` | 3 | 진화 파이프라인, 피드백 루프, Worker 프로토콜 |
-| `docs/jarvis/research/` | 2 | Claude Code 소스 분석, 20개 레포 조사 |
-| `docs/jarvis/knowledge/` | 9 | 순환 검증, 심층 리뷰, Iron Law 감사 |
-| `docs/jarvis/simulations/` | 2 | STALL/ERROR 시뮬레이션, 공격 테스트 |
+The Watcher is a **dedicated monitoring AI** that runs continuously in its own tmux pane.
+
+| Layer | Method | Detects |
+|-------|--------|---------|
+| **L1 Eagle** | Text-based status parsing | IDLE / WORKING / ERROR / DONE |
+| **L2 OCR** | Apple Vision screen capture | Stuck states, error dialogs |
+| **L2.5 VisionDiff** | Before/after screen comparison | No screen change (stall) |
+| **L3 Pipe-pane** | Raw tmux output capture | Rate limits, context overflow |
+
+**Key behaviors:**
+- IDLE debounce: 30s grace after DONE + 120s min between reminders
+- Mute mode: notifications off, scanning continues
+- Pause sync: auto-freezes with `/cmux-pause`, checks every 5s
+- Role filtering: only monitors workers (Boss/Watcher/JARVIS excluded)
 
 ---
 
-## 제거
+## JARVIS: Self-Evolving Config Engine
+
+When the same problem repeats 3+ times, JARVIS detects it and proposes a config fix.
 
 ```
+Detect --> Analyze --> Propose --> [User Approves] --> Backup --> Implement --> Verify
+                                  [User Rejects]  --> Log & Close
+```
+
+### Iron Laws
+
+| # | Law | Meaning |
+|---|-----|---------|
+| 1 | **No evolution without user approval** | Every config change requires explicit `[Approve]` |
+| 2 | **No implementation without expected outcome** | Document what will change before doing it |
+| 3 | **No completion without verification evidence** | Prove the fix actually worked |
+
+### Safety Rails
+
+- Max 3 consecutive evolutions (loop prevention)
+- Max 10 daily evolutions
+- LOCK file prevents concurrent evolution (TTL 60min)
+- 2-generation backup for instant rollback
+
+---
+
+## 30 Hooks: 4-Tier Enforcement
+
+All hooks are **dormant until `/cmux-start`**. Zero interference in normal usage.
+
+### By Event
+
+| Event | Count | Purpose | Enforcement |
+|-------|-------|---------|-------------|
+| **PreToolUse** | 15 | Block tool execution before it runs | L0 Physical Block |
+| **PostToolUse** | 4 | Monitor after execution | L2 Warning |
+| **UserPromptSubmit** | 3 | Inject context before prompt | L2 |
+| **SessionStart** | 3 | Load config at session init | L1 |
+| **Stop** | 1 | Cleanup on session end | L1 |
+| **FileChanged** | 1 | Detect file changes (JARVIS) | Trigger |
+| **ConfigChange** | 1 | Protect settings.json (JARVIS) | L0 |
+| **Pre/PostCompact** | 2 | Context preservation (JARVIS) | Info |
+
+### Enforcement Tiers
+
+| Tier | Mechanism | Example |
+|------|-----------|---------|
+| **L0: Physical Block** | PreToolUse hook prevents tool execution | Unverified `git commit` blocked |
+| **L1: Auto-execute** | Script runs automatically on event | Eagle status refresh after send-key |
+| **L2: Warning Escalation** | systemMessage injects warning | 3+ IDLE surfaces trigger alert |
+| **L3: Self-check** | SKILL.md checklist | GATE 0-7 before round end |
+
+### Gate Matrix (L0 Blocks)
+
+| Gate | Rule | Hook |
+|------|------|------|
+| GATE 0 | No commit before collection complete | `cmux-completion-verifier.py` |
+| GATE 6 | IDLE surface exists -> Agent forbidden | `cmux-gate6-agent-block.sh` |
+| GATE 7 | IDLE worker exists -> Main direct work forbidden | `cmux-gate7-main-delegate.py` |
+| CT | Control tower close forbidden | `cmux-control-tower-guard.py` |
+| LECEIPTS | 5-section report before commit | `cmux-leceipts-gate.py` |
+| PLAN-QG | 5-point verification + simulation before ExitPlanMode | `cmux-plan-quality-gate.py` |
+| WF | Workflow state machine (DISPATCH->COLLECT->VERIFY->COMMIT) | `cmux-workflow-state-machine.py` |
+
+---
+
+## AI Profiles
+
+6 AI models auto-detected and assigned by capability.
+
+| AI | CLI | Strength | Best Role |
+|----|-----|----------|-----------|
+| **Claude** | `claude` | General-purpose, high quality | Boss, Lead |
+| **Codex** | `codex` | Fast coding, sandboxed | Worker (no cmux CLI) |
+| **OpenCode** | `cco` | Lightweight, fast | Worker |
+| **GLM** | `ccg2` | Short prompt specialist | Worker (< 200 chars) |
+| **Gemini** | `gemini` | 2-step delivery | Worker (/clear + task split) |
+| **MiniMax** | `ccm` | Balanced, cost-efficient | Worker |
+
+```bash
+/cmux-config detect     # Auto-detect installed AIs
+/cmux-config add codex   # Manual add
+/cmux-config remove glm  # Manual remove
+```
+
+---
+
+## Cross-Platform
+
+Runs on macOS, Linux, and WSL. OS-specific commands are abstracted through `cmux_compat` — a Python daemon that normalizes `grep -P`, `date -j`, `stat -f`, and 7 other OS-dependent operations into a single API.
+
+- Auto-starts with `/cmux-start` via Unix socket (`/tmp/cmux-compat.sock`)
+- Falls back to inline `python3` if daemon is unavailable
+
+---
+
+## Security
+
+| Mechanism | Implementation | Protects Against |
+|-----------|---------------|-----------------|
+| Injection prevention | `shlex.quote()` everywhere, no `shell=True` | Shell metachar attacks |
+| Atomic backups | Backup-then-copy (never overwrite) | settings.json corruption |
+| Dual enforcement | SKILL.md rules + PreToolUse hooks | Unauthorized config changes |
+| ConfigChange block | `exit 2` prevents modification | GATE hook deletion |
+| LOCK 3-conditions | LOCK + phase=applying + evidence | Forged evolution attempts |
+| Control tower guard | shlex token analysis for `close-workspace` only | Main/Watcher termination |
+| Role filtering | `cmux identify` + roles.json | Cross-session interference |
+| Mode gate | All 30 hooks dormant before `/cmux-start` | Non-orchestration interference |
+
+---
+
+## Installation
+
+### Prerequisites
+
+| Requirement | Check | Note |
+|-------------|-------|------|
+| cmux 0.62+ | `cmux --version` | Required |
+| Claude Code 2.1+ | `claude --version` | Required |
+| Python 3.9+ | `python3 --version` | Required |
+
+### Install
+
+```bash
+bash install.sh
+```
+
+The installer automatically:
+1. Detects OS (macOS / Linux / WSL)
+2. Validates cmux and python3 versions
+3. Backs up existing settings.json and skills
+4. Copies 9 skills to `~/.claude/skills/`
+5. Creates 30 hook symlinks + registers in settings.json
+6. Auto-detects installed AI CLIs
+
+### Uninstall
+
+```bash
 /cmux-uninstall
-# → [백업에서 롤백] 또는 [cmux hook만 제거]
+# --> [Rollback from backup] or [Remove cmux hooks only]
 ```
+
+---
+
+## Project Structure
+
+```
+cmux-orchestrator-watcher-pack/           183 files
+|
+|-- install.sh                             One-command installer
+|-- README.md
+|
+|-- cmux-orchestrator/                     Boss (Main) -- orchestration core
+|   |-- SKILL.md                           Orchestration directives
+|   |-- activation-hook.sh                 Auto-registration on skill load
+|   |-- hooks/                (22)         Workflow enforcement hooks
+|   |-- scripts/              (37)         eagle, dispatcher, compat, validators
+|   |-- references/           (16)         Architecture + gate docs
+|   |-- agents/               (3)          cmux-reviewer, cmux-git, cmux-security
+|   |-- commands/             (2)          Command definitions
+|   +-- config/               (2)          ai-profile.json, orchestra-config.json
+|
+|-- cmux-watcher/                          Watcher -- real-time monitoring
+|   |-- SKILL.md
+|   |-- hooks/                (2)
+|   |-- scripts/              (4)          watcher-scan.py (55KB, unified scanner)
+|   |-- commands/             (2)          cmux-watcher-mute
+|   +-- references/           (4)          Monitoring protocols
+|
+|-- cmux-jarvis/                           JARVIS -- self-evolving config engine
+|   |-- SKILL.md
+|   |-- hooks/                (6)          GATE, FileChanged, Compact
+|   |-- scripts/              (19)         Evolution, verify, maintenance, plugins
+|   |-- references/           (7)          Iron laws, red flags, metrics
+|   |-- agents/               (1)          evolution-worker
+|   +-- skills/               (2)          Evolution, visualization sub-skills
+|
+|-- cmux-start/                            /cmux-start
+|-- cmux-stop/                             /cmux-stop
+|-- cmux-config/                           /cmux-config
+|-- cmux-help/                             /cmux-help
+|-- cmux-pause/                            /cmux-pause
+|-- cmux-uninstall/                        /cmux-uninstall
+|
+|-- docs/                                  Design documents
+|   |-- jarvis/               (33)         JARVIS architecture + research
+|   +-- issues/               (1)          Known issues
++-- tests/                                 Hook tests
+```
+
+---
+
+## Changelog
+
+### 2026-04-11
+
+- **LECEIPTS Gate** -- 5-section report + diff hash binding enforced before every `git commit`
+- **Plan Quality Gate** -- 5-point circular verification + simulation required before ExitPlanMode
+- **`is_git_commit()` hardening** -- Detects `git -C .`, `--work-tree`, `--git-dir` variants
+- **`has_success` validation** -- At least one passing verification required (no all-failure reports)
+- **Watcher guard reorder** -- Complete no-op when orchestration disabled (role marker included)
+- **Standalone installer sync** -- HOOK_MAP aligned with activation-hook.sh
+
+### 2026-04-09
+
+- **GATE 7** -- Main direct work blocked when IDLE workers exist
+- **JARVIS Python migration** -- Core scripts migrated to Python
+
+### 2026-04-08
+
+- **DONE quality gate** -- Shell-only completion reports blocked
+- **Auto-restart protocol** -- Automatic recovery after Claude Code limit reset
+
+### 2026-04-07
+
+- **JARVIS real-time feedback pipeline**
+- **Team lead work protocol** (3-phase: analyze, decide, execute)
 
 ---
 
