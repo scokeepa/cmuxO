@@ -27,8 +27,9 @@ VERIFICATION_SECTIONS = [
 
 # 시뮬레이션 결과 섹션 헤더
 SIMULATION_HEADER = re.compile(r"^##\s+.*시뮬레이션 결과", re.MULTILINE)
-# verdict 패턴: ALL PASS, PASS, FAIL 등
-VERDICT_PATTERN = re.compile(r"\b(ALL PASS|PASS|FAIL)\b")
+# verdict 패턴: ALL PASS 또는 PASS만 통과. FAIL은 block.
+PASS_VERDICT = re.compile(r"\bALL PASS\b")
+FAIL_VERDICT = re.compile(r"\bFAIL\b")
 
 MIN_SECTION_LENGTH = 30  # 섹션 헤더 ~ 다음 헤더 사이 최소 문자 수
 
@@ -84,9 +85,13 @@ def main():
         issues.append("시뮬레이션 결과 섹션 누락 (## ... 시뮬레이션 결과 형식 필요)")
     else:
         sim_content = _extract_section_content(content, sim_match)
-        if not VERDICT_PATTERN.search(sim_content):
+        if FAIL_VERDICT.search(sim_content):
             issues.append(
-                "시뮬레이션 결과에 verdict 누락 (ALL PASS / PASS / FAIL 중 하나 필요)"
+                "시뮬레이션 결과에 FAIL 존재 — blocking issue를 수정한 후 다시 시도하세요"
+            )
+        elif not PASS_VERDICT.search(sim_content):
+            issues.append(
+                "시뮬레이션 결과에 verdict 누락 (ALL PASS 필요)"
             )
 
     if issues:
