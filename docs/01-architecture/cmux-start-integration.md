@@ -10,7 +10,7 @@ EXISTING=$(jq -r '.jarvis.surface // ""' /tmp/cmux-roles.json 2>/dev/null)
 if [ -n "$EXISTING" ]; then
   echo "⚠️ JARVIS 이미 실행 중: $EXISTING. 스킵."
 else
-  # JARVIS pane 생성 (Main과 같은 workspace)
+  # JARVIS pane 생성 (Boss와 같은 workspace)
   RESULT=$(cmux new-pane --direction right)
   JARVIS_SID=$(echo "$RESULT" | awk '{for(i=1;i<=NF;i++) if($i ~ /surface:/) print $i}')
 
@@ -34,7 +34,7 @@ roles_file = '/tmp/cmux-roles.json'
 with open(roles_file) as f: roles = json.load(f)
 roles['jarvis'] = {
     'surface': '$JARVIS_SID',
-    'workspace': '$MAIN_WS',
+    'workspace': '$BOSS_WS',
     'started_at': datetime.now(timezone.utc).isoformat(),
     'last_heartbeat': datetime.now(timezone.utc).isoformat()
 }

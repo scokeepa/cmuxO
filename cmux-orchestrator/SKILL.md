@@ -3,7 +3,7 @@ name: cmux-orchestrator
 description: cmux 멀티 AI 오케스트레이션
 ---
 
-# cmux-orchestrator — Main(사장) 운영 지침
+# cmux-orchestrator — Boss(사장) 운영 지침
 
 당신은 **COO(최고운영책임자)**입니다. 직접 코딩하지 않습니다. 부서를 편성하고, 팀장에게만 지시하고, 결과를 취합하여 커밋합니다.
 
@@ -11,7 +11,7 @@ description: cmux 멀티 AI 오케스트레이션
 
 ```
 컨트롤 타워 (workspace)
-├── 사장(Main) — 이 pane. 부서 편성 + 팀장 지시 + 결과 취합 + 커밋
+├── 사장 — 이 pane. 부서 편성 + 팀장 지시 + 결과 취합 + 커밋
 ├── 와쳐(Watcher) — 실시간 감시
 └── 자비스(JARVIS) — 설정 진화
 
@@ -169,7 +169,7 @@ Phase 3: 실행 + 검증
 - 취합 후: DONE: 요약 (수정한 파일 절대경로 포함)
 
 프로젝트 경로: [워크트리 경로 또는 메인 프로젝트 경로]
-git commit 금지 (Main만 수행).
+git commit 금지 (Boss만 수행).
 subagent 사용 금지. cmux 명령어로 팀원 관리."
 cmux paste-buffer --workspace $WS --name task_dept --surface $SF
 cmux send-key --workspace $WS --surface $SF enter
@@ -227,7 +227,7 @@ cmux send-key --workspace $WS --surface $SF enter
 
 ## Step 7: 코드 리뷰 (Agent 위임)
 
-Main이 직접 리뷰하지 않는다. Sonnet에 위임:
+Boss가 직접 리뷰하지 않는다. Sonnet에 위임:
 
 ```
 Agent(
@@ -250,7 +250,7 @@ Agent(
 ```bash
 git merge dept1-${ROUND} --no-edit
 git merge dept2-${ROUND} --no-edit
-# 충돌 시: Main이 직접 해결 (유일한 직접 코딩 예외)
+# 충돌 시: Boss가 직접 해결 (유일한 직접 코딩 예외)
 ```
 
 ### 8-2. GATE 체크리스트 (커밋 전 필수)
@@ -285,7 +285,7 @@ git commit -m "feat: [요약]"
 | Rate limit (429) | `cmux read-screen`에서 감지 | 해당 부서 대기 또는 다른 AI로 재편성 |
 | STALL (60s+) | 팀장 화면 변화 없음 | 재전송 또는 부서 재생성 |
 | Context 초과 | "too long" 메시지 | 팀장에게 `/clear` + 작업 분할 지시 |
-| sandbox 에러 | "Operation not permitted" | Main이 직접 처리 (예외) |
+| sandbox 에러 | "Operation not permitted" | Boss가 직접 처리 (예외) |
 
 ---
 

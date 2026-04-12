@@ -11,6 +11,8 @@ import tempfile
 
 import chromadb
 
+from chromadb_test_utils import get_collection, get_or_create_collection
+
 COLLECTION_NAME = "cmux_mentor_signals"
 
 
@@ -30,7 +32,7 @@ def _simulate_mentor_inject(palace_path, hint_cache_path):
     try:
         client = chromadb.PersistentClient(path=palace_path)
         try:
-            col = client.get_collection(COLLECTION_NAME)
+            col = get_collection(client, COLLECTION_NAME)
         except Exception:
             col = None
 
@@ -71,7 +73,7 @@ def _seed_palace(palace_path, identity=None, signals=None):
             f.write(identity)
     if signals:
         client = chromadb.PersistentClient(path=palace_path)
-        col = client.get_or_create_collection(COLLECTION_NAME)
+        col = get_or_create_collection(client, COLLECTION_NAME)
         for i, sig in enumerate(signals):
             meta = {"wing": "cmux_mentor", "ts": sig.get("ts", f"2026-04-01T00:0{i}:00Z")}
             meta["harness_level"] = sig.get("harness_level", 3)
@@ -130,7 +132,7 @@ def test_hint_spam_prevention():
 
         # Third call: new hint via new signal (higher ts to be sorted first)
         client = chromadb.PersistentClient(path=palace)
-        col = client.get_collection(COLLECTION_NAME)
+        col = get_collection(client, COLLECTION_NAME)
         col.add(
             ids=["sig-new"],
             documents=["new signal"],

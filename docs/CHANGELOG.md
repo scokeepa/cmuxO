@@ -1,8 +1,21 @@
 # Changelog
 
+## 2026-04-12 (External Review Follow-up — CPU Test Path + Nudge SSOT)
+
+**레드팀 재검증 후 차단 이슈 수정 — 78/78 tests passed**
+
+- `tests/chromadb_test_utils.py` 추가: 직접 ChromaDB collection을 생성하는 테스트도 `ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])` 사용.
+- `test_context_injection.py`, `test_palace_memory.py`, `test_failure_classifier.py`, `test_mentor_report.py`의 direct collection 생성 경로를 CPU-only helper로 교체.
+- `/cmux-start` runtime role SSOT를 `roles['boss']`로 정렬. `roles['main']`은 더 이상 nudge 권한 검증 alias로 허용하지 않음.
+- roles 파일이 존재하면 미등록 issuer/target은 fail-closed.
+- `jarvis_nudge.py`에 reason_code enum 검증 추가. cooldown 내부 reason도 `rate_limited`로 정렬.
+- nudge evidence redaction을 ChromaDB document뿐 아니라 cmux 전송 message와 stdout audit event까지 확장.
+- `test_nudge.py` 12 → 18 tests: boss-only SSOT, same-timestamp audit ID, missing target fail-closed, invalid reason_code, send/audit redaction 추가.
+- 갭분석 후 `/cmux-stop`의 `roles['main']` 조회와 watcher state 문서의 `main_state` 표기를 `boss`/`boss_state`로 정렬.
+
 ## 2026-04-12 (External Review — 7 Issues Root Cause Fix)
 
-**외부 전문가 리뷰 No-Go 7건 근본 해결 — 72/72 tests passed**
+**외부 전문가 리뷰 No-Go 7건 근본 해결 — 76/76 tests passed after follow-up**
 
 **ORT CPU-only 강제: monkey-patch → ChromaDB 공식 preferred_providers API (Issue #1-2)**
 - 모든 JARVIS 모듈 `_get_collection()`에 `ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])` 적용
@@ -16,7 +29,7 @@
 - Export 포맷: version 1 + signals/l0/l1 → version 2 + drawers 기반
 
 **README 수치 정정 (Issue #4)**
-- "62 unit tests" → "72 unit tests"
+- "62 unit tests" → "78 unit tests" (follow-up nudge hardening tests 포함)
 
 **Context injection 테스트 ChromaDB 기반 재작성 (Issue #5)**
 - `test_context_injection.py` 시뮬레이터를 파일 기반(L0.md/L1.md/signals.jsonl) → ChromaDB 기반으로 전면 교체
@@ -37,7 +50,7 @@
 
 **테스트 환경 안정화 (F1)**
 - `tests/conftest.py` 신규 — pytest 최초 로드 시 `ORT_DISABLE_COREML=1` + `ANONYMIZED_TELEMETRY=False` + posthog 로거 억제
-- 결과: 25 failed → 0 failed (62/62 → 72/72)
+- 결과: 25 failed → 0 failed (follow-up 이후 78/78)
 
 **Palace Restore 명령 추가 (F3)**
 - `_detect_chromadb_version()` — ChromaDB SQLite 스키마로 0.5.x/0.6.x/1.x 판별 (mempalace/migrate.py 패턴)
@@ -67,11 +80,11 @@
 - `system-overview.md` — 멘토 신호 SSOT 경로 `~/.cmux-jarvis-palace/ (ChromaDB)` 변경
 - `privacy-policy.md` — 저장소, retention, delete, export ChromaDB 기준 + mentor.enabled 구현 반영
 - `nudge-escalation.md` — workspace 교차 검증 구현 현황 업데이트
-- `test-guide.md` — 72 tests, conftest.py ChromaDB 환경 설명
+- `test-guide.md` — 78 tests, conftest.py + CPU-only helper ChromaDB 환경 설명
 
-**Testing: 62 → 72 tests (+10)**
+**Testing: 62 → 78 tests (+16 after follow-up)**
 - test_palace_memory (+4): restore, restore_dry_run, extract_drawers_from_sqlite, detect_chromadb_version
-- test_nudge (+5): nudge_excluded_from_mentor, send_failure_outcome, cross_workspace_blocked, same_workspace_allowed, no_roles_fallback
+- test_nudge (+11): nudge_excluded_from_mentor, send_failure_outcome, cross_workspace_blocked, same_workspace_allowed, no_roles_fallback, boss-only SSOT, same-timestamp audit ID, missing target fail-closed, invalid reason_code, send/audit redaction
 - test_mentor_signal (+1): mentor_disabled_skips_emit
 
 ## 2026-04-11 (Integration Audit Fix)
@@ -115,7 +128,7 @@
 **P0: Runtime Bug Fixes**
 - **validate-config.sh `import os` fix** -- `NameError: name 'os' is not defined` resolved. JSON report now outputs correctly in no-cmux/sandbox/cmux-socket environments
 - **watcher-scan.py stale AI detection fix** -- `get_available_tools()` now uses `shutil.which()` runtime check instead of stale `ai-profile.json.detected` field. Correctly detects codex/gemini/claude
-- **orchestra-config.json deprecation notice** -- Runtime fields (surfaces, main_surface, watcher_surface) marked deprecated; SSOT is `/tmp/cmux-surface-map.json` + `cmux tree --all`
+- **orchestra-config.json deprecation notice** -- Runtime fields (surfaces, boss_surface, watcher_surface) marked deprecated; SSOT is `/tmp/cmux-surface-map.json` + `cmux tree --all`
 
 **P1: JARVIS Architecture Documents (7 files)**
 - **mentor-lane.md** -- Mentor Lane role definition. Lane M (coaching) separated from Lane B (evolution). Context injection policy: L0+L1 600-900 tokens, max 1 hint/round
@@ -163,7 +176,7 @@
 
 ## 2026-04-09
 
-- **GATE 7** -- Main direct work blocked when IDLE workers exist
+- **GATE 7** -- Boss direct work blocked when IDLE workers exist
 - **JARVIS Python migration** -- Core scripts migrated to Python
 
 ## 2026-04-08

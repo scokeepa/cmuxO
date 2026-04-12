@@ -14,7 +14,7 @@ allowed-tools: Bash, Read, Write, Agent, AskUserQuestion
 
 **결과물:**
 - 사이드바에 **"컨트롤 타워"** workspace (맨 위 고정)
-- 컨트롤 타워 안에 **사장(Main)**, **와쳐(Watcher)**, **자비스(JARVIS)** 3개 pane
+- 컨트롤 타워 안에 **사장(Boss)**, **와쳐(Watcher)**, **자비스(JARVIS)** 3개 pane
 - 사장 pane에 "작업을 지시해주세요" 출력
 - 기존 세션이 있으면 오케스트레이션 포함 여부 질문
 
@@ -46,7 +46,7 @@ SURFACE_COUNT=$(echo "$TREE" | grep -c "surface:" || echo "1")
 {각 workspace: surface 목록}
 
 이 세션들을 오케스트레이션에 포함할까요?
-[포함] → 기존 세션을 팀원으로 등록. Main이 관리.
+[포함] → 기존 세션을 팀원으로 등록. Boss가 관리.
 [새로 시작] → 기존 세션은 그대로 두고, 새 컨트롤 타워만 생성.
 ```
 
@@ -64,17 +64,17 @@ python3 ~/.claude/skills/cmux-orchestrator/scripts/cmux_compat.py start 2>/dev/n
 현재 workspace 이름을 **"컨트롤 타워"**로 변경합니다.
 
 ```bash
-MAIN_WS=$(cmux identify 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('caller',{}).get('workspace_ref',''))" 2>/dev/null)
-MAIN_SID=$(cmux identify 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('caller',{}).get('surface_ref',''))" 2>/dev/null)
+BOSS_WS=$(cmux identify 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('caller',{}).get('workspace_ref',''))" 2>/dev/null)
+BOSS_SID=$(cmux identify 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('caller',{}).get('surface_ref',''))" 2>/dev/null)
 
 # workspace 이름을 "컨트롤 타워"로
-cmux rename-workspace --workspace $MAIN_WS "컨트롤 타워"
+cmux rename-workspace --workspace $BOSS_WS "컨트롤 타워"
 
 # 현재 pane(사장) 탭 이름 변경
-cmux rename-tab --surface $MAIN_SID "사장(Main)"
+cmux rename-tab --surface $BOSS_SID "사장(Boss)"
 ```
 
-### Step 2: Main(사장) 등록
+### Step 2: Boss(사장) 등록
 
 ```bash
 python3 -c "
@@ -86,9 +86,9 @@ if os.path.exists(roles_file):
     try:
         with open(roles_file) as f: roles = json.load(f)
     except: pass
-roles['main'] = {
-    'surface': '$MAIN_SID',
-    'workspace': '$MAIN_WS',
+roles['boss'] = {
+    'surface': '$BOSS_SID',
+    'workspace': '$BOSS_WS',
     'started_at': datetime.now(timezone.utc).isoformat(),
     'last_heartbeat': datetime.now(timezone.utc).isoformat()
 }
@@ -138,7 +138,7 @@ if [ -z "$EXISTING_WATCHER" ]; then
 import json
 from datetime import datetime, timezone
 with open('/tmp/cmux-roles.json') as f: roles = json.load(f)
-roles['watcher'] = {'surface':'$WATCHER_SID','workspace':'$MAIN_WS','started_at':datetime.now(timezone.utc).isoformat()}
+roles['watcher'] = {'surface':'$WATCHER_SID','workspace':'$BOSS_WS','started_at':datetime.now(timezone.utc).isoformat()}
 with open('/tmp/cmux-roles.json','w') as f: json.dump(roles,f,indent=2)
 "
 else
@@ -178,7 +178,7 @@ if [ -z "$EXISTING_JARVIS" ]; then
     sleep 2
 
     # JARVIS 시작 명령 전달
-    cmux send --surface $JARVIS_SID "당신은 JARVIS 시스템 관리자입니다. cmux-jarvis 스킬을 사용하여 오케스트레이션 상태를 모니터링하세요. /tmp/cmux-roles.json과 /tmp/cmux-eagle-status.json을 주기적으로 확인하고, 문제 발견 시 사장(Main) pane에 알려주세요."
+    cmux send --surface $JARVIS_SID "당신은 JARVIS 시스템 관리자입니다. cmux-jarvis 스킬을 사용하여 오케스트레이션 상태를 모니터링하세요. /tmp/cmux-roles.json과 /tmp/cmux-eagle-status.json을 주기적으로 확인하고, 문제 발견 시 사장(Boss) pane에 알려주세요."
     cmux send-key --surface $JARVIS_SID Enter
 
     # roles.json 등록
@@ -186,7 +186,7 @@ if [ -z "$EXISTING_JARVIS" ]; then
 import json
 from datetime import datetime, timezone
 with open('/tmp/cmux-roles.json') as f: roles = json.load(f)
-roles['jarvis'] = {'surface':'$JARVIS_SID','workspace':'$MAIN_WS','started_at':datetime.now(timezone.utc).isoformat()}
+roles['jarvis'] = {'surface':'$JARVIS_SID','workspace':'$BOSS_WS','started_at':datetime.now(timezone.utc).isoformat()}
 with open('/tmp/cmux-roles.json','w') as f: json.dump(roles,f,indent=2)
 "
 else
@@ -198,7 +198,7 @@ fi
 
 ```bash
 # 컨트롤 타워를 사이드바 맨 위에 고정
-cmux reorder-workspace --workspace $MAIN_WS --index 0
+cmux reorder-workspace --workspace $BOSS_WS --index 0
 touch /tmp/cmux-orch-enabled
 ```
 
@@ -221,7 +221,7 @@ fi
 
   컨트롤 타워 구성:
   ─────────────────────────────────────────────────────
-  🔵 사장(Main)   — 이 pane. 작업 지시 + 부서 편성
+  🔵 사장(Boss)   — 이 pane. 작업 지시 + 부서 편성
   🟢 와쳐(Watcher) — 모니터링 + 리소스 관리
   🟡 자비스(JARVIS) — User 직속 참모. 설정 진화 + 정책 변경 + 문제 즉각 해결
 
@@ -245,7 +245,7 @@ fi
 
 ### Step 7: Orchestrator 스킬 활성화
 
-Skill("cmux-orchestrator")를 활성화하여 Main(사장) 역할을 시작합니다.
+Skill("cmux-orchestrator")를 활성화하여 Boss(사장) 역할을 시작합니다.
 
 ---
 

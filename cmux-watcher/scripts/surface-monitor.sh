@@ -1,6 +1,6 @@
 #!/bin/bash
-# surface-monitor.sh — 지정 surface DONE 감지 + Main 알림 (v2.0)
-# Usage: bash surface-monitor.sh --targets "1 3 4 21 22" --main surface:28 [--interval 20] [--max-rounds 90]
+# surface-monitor.sh — 지정 surface DONE 감지 + Boss 알림 (v2.0)
+# Usage: bash surface-monitor.sh --targets "1 3 4 21 22" --boss surface:28 [--interval 20] [--max-rounds 90]
 #
 # DONE 판정 기준 (3가지 중 하나):
 #   1. 강한 키워드: DONE: / TASK COMPLETE / Brewed / Cooked / Baked / Crunched / Worked
@@ -14,14 +14,14 @@ READ_SURFACE="$ORCH_DIR/scripts/read-surface.sh"
 
 # 파라미터 파싱
 TARGETS=""
-MAIN_SF=""
+BOSS_SF=""
 INTERVAL=20
 MAX_ROUNDS=90
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --targets) TARGETS="$2"; shift 2 ;;
-    --main) MAIN_SF="$2"; shift 2 ;;
+    --boss) BOSS_SF="$2"; shift 2 ;;
     --interval) INTERVAL="$2"; shift 2 ;;
     --max-rounds) MAX_ROUNDS="$2"; shift 2 ;;
     *) shift ;;
@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [ -z "$TARGETS" ] && echo "ERROR: --targets required" && exit 1
-[ -z "$MAIN_SF" ] && echo "ERROR: --main required" && exit 1
+[ -z "$BOSS_SF" ] && echo "ERROR: --boss required" && exit 1
 
 TARGET_COUNT=$(echo $TARGETS | wc -w | tr -d ' ')
 DONE_SET=""
@@ -97,12 +97,12 @@ for i in $(seq 1 $MAX_ROUNDS); do
     fi
   done
 
-  # 새로 DONE된 게 있으면 Main에 중간 알림
+  # 새로 DONE된 게 있으면 Boss에 중간 알림
   if [ -n "$NEW_DONE" ]; then
     DONE_COUNT=$(echo "$DONE_SET" | wc -w | tr -d ' ')
-    cmux send --surface "$MAIN_SF" "[WATCHER→MAIN] DONE: s:${NEW_DONE// / s:} 완료 (${DONE_COUNT}/${TARGET_COUNT})" 2>/dev/null
+    cmux send --surface "$BOSS_SF" "[WATCHER→BOSS] DONE: s:${NEW_DONE// / s:} 완료 (${DONE_COUNT}/${TARGET_COUNT})" 2>/dev/null
     sleep 0.5
-    cmux send-key --surface "$MAIN_SF" enter 2>/dev/null
+    cmux send-key --surface "$BOSS_SF" enter 2>/dev/null
   fi
 
   # Vision Diff 재검증: DONE 판정된 surface를 60초 후 재확인
@@ -118,9 +118,9 @@ for i in $(seq 1 $MAX_ROUNDS); do
       elif echo "$RECHECK" | grep -qiE '할까요\?|하시겠습니까\?|proceed\?|y/n'; then
         echo "[$(date +%H:%M:%S)] surface:$sf ❌ DONE 취소 — WAITING (질문 대기)"
         DONE_SET=$(echo "$DONE_SET" | sed "s/\b$sf\b//g" | tr -s ' ')
-        cmux send --surface "$MAIN_SF" "[WATCHER→MAIN] WAITING: surface:$sf 사용자 입력 대기 중" 2>/dev/null
+        cmux send --surface "$BOSS_SF" "[WATCHER→BOSS] WAITING: surface:$sf 사용자 입력 대기 중" 2>/dev/null
         sleep 0.5
-        cmux send-key --surface "$MAIN_SF" enter 2>/dev/null
+        cmux send-key --surface "$BOSS_SF" enter 2>/dev/null
       fi
     done
   fi
@@ -129,9 +129,9 @@ for i in $(seq 1 $MAX_ROUNDS); do
   DONE_COUNT=$(echo "$DONE_SET" | wc -w | tr -d ' ')
   if [ "$DONE_COUNT" -ge "$TARGET_COUNT" ]; then
     echo "[$(date +%H:%M:%S)] ALL $TARGET_COUNT DONE ✅✅✅"
-    cmux send --surface "$MAIN_SF" "[WATCHER→MAIN] ⚠️ ALL ${TARGET_COUNT} DONE: 전부 완료! 즉시 결과 수집." 2>/dev/null
+    cmux send --surface "$BOSS_SF" "[WATCHER→BOSS] ⚠️ ALL ${TARGET_COUNT} DONE: 전부 완료! 즉시 결과 수집." 2>/dev/null
     sleep 0.5
-    cmux send-key --surface "$MAIN_SF" enter 2>/dev/null
+    cmux send-key --surface "$BOSS_SF" enter 2>/dev/null
     exit 0
   fi
 
@@ -142,7 +142,7 @@ echo "[$(date +%H:%M:%S)] 타임아웃. DONE: $DONE_SET ($(echo $DONE_SET | wc -
 # 타임아웃이어도 부분 결과 알림
 DONE_COUNT=$(echo "$DONE_SET" | wc -w | tr -d ' ')
 if [ "$DONE_COUNT" -gt 0 ]; then
-  cmux send --surface "$MAIN_SF" "[WATCHER→MAIN] TIMEOUT: ${DONE_COUNT}/${TARGET_COUNT} 완료. 나머지 확인 필요." 2>/dev/null
+  cmux send --surface "$BOSS_SF" "[WATCHER→BOSS] TIMEOUT: ${DONE_COUNT}/${TARGET_COUNT} 완료. 나머지 확인 필요." 2>/dev/null
   sleep 0.5
-  cmux send-key --surface "$MAIN_SF" enter 2>/dev/null
+  cmux send-key --surface "$BOSS_SF" enter 2>/dev/null
 fi

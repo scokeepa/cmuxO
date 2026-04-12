@@ -2,7 +2,7 @@
 """cmux-control-tower-guard.py — PreToolUse:Bash Hook
 
 cmux close-workspace 명령이 컨트롤 타워를 대상으로 하면 BLOCK.
-컨트롤 타워(Main/Watcher가 속한 workspace)는 절대 닫을 수 없다.
+컨트롤 타워(Boss/Watcher가 속한 workspace)는 절대 닫을 수 없다.
 """
 import json
 import os
@@ -66,10 +66,10 @@ def main():
         print(json.dumps({"decision": "approve"}))
         return
 
-    main_ws = roles.get("main", {}).get("workspace", "")
+    boss_ws = roles.get("boss", {}).get("workspace", "")
     watcher_ws = roles.get("watcher", {}).get("workspace", "")
 
-    if target_ws in (main_ws, watcher_ws) and target_ws:
+    if target_ws in (boss_ws, watcher_ws) and target_ws:
         print(json.dumps({
             "decision": "block",
             "reason": f"[CONTROL-TOWER-GUARD] {target_ws}는 컨트롤 타워입니다. 닫을 수 없습니다."

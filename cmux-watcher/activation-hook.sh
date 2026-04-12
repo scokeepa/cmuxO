@@ -47,7 +47,7 @@ rm -f /tmp/cmux-vdiff-prev.json /tmp/cmux-pipe-pane-initialized.flag
 (
     while true; do
         # watcher-scan.py 실행 (foreground in subshell)
-        python3 "$SCRIPT" --continuous 60 --notify-main --json >> "$LOG_FILE" 2>&1 &
+        python3 "$SCRIPT" --continuous 60 --notify-boss --json >> "$LOG_FILE" 2>&1 &
         SCAN_PID=$!
         echo "$SCAN_PID" > "/tmp/cmux-watcher-scan.pid"
         echo "[$(date)] watcher-scan 시작 PID=$SCAN_PID" >> "$LOG_FILE"
@@ -82,5 +82,5 @@ echo "$WATCHDOG_PID" > "$WATCHDOG_PID_FILE"
 
 echo "[cmux-watcher] v4.0 watchdog 시작 (PID: $WATCHDOG_PID)"
 echo "[cmux-watcher] 4계층 강제: L1(Eagle) L2(ANE-OCR) L2.5(VisionDiff) L3(pipe-pane)"
-echo "[cmux-watcher] adaptive polling: Main IDLE→120s, WORKING→60s, 배정중→15s"
+echo "[cmux-watcher] adaptive polling: Boss IDLE→120s, WORKING→60s, 배정중→15s"
 echo "[cmux-watcher] 로그: $LOG_FILE"

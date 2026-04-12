@@ -114,7 +114,7 @@ function_recover_surface() {
 
 ## 컨텍스트 부족 시 대응
 
-**Main(Opus):**
+**Boss(Opus):**
 
 | 상황 | 행동 |
 |------|------|
@@ -156,7 +156,7 @@ cmux send-key --surface surface:3 enter
 ### 3. Codex 사용 제한
 
 ⛔ **서브에이전트 금지**: Codex는 서브에이전트(Agent tool)로 호출 불가
-⛔ **Git 작업 금지**: git add/commit/push는 Main(Opus)만 수행
+⛔ **Git 작업 금지**: git add/commit/push는 Boss(Opus)만 수행
 ⛔ **질문 금지**: 작업 배정 시 질문 없이 바로 실행
 
 **올바른 사용 예시**:

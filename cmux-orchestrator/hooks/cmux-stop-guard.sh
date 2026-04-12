@@ -28,7 +28,7 @@ working = []
 # 오케스트레이션 관리 대상 surface 목록 (dispatched + team members, 자기자신/watcher/jarvis 제외)
 managed_surfaces = set()
 roles_file = '/tmp/cmux-roles.json'
-excluded_roles = {'main', 'watcher', 'jarvis'}
+excluded_roles = {'boss', 'watcher', 'jarvis'}
 if os.path.exists(roles_file):
     try:
         roles = json.load(open(roles_file))
@@ -64,13 +64,13 @@ if managed_surfaces:
 if os.path.exists(enter_signal):
     try:
         sig = json.load(open(enter_signal))
-        main_sf = sig.get('main_surface', '')
-        main_ws = sig.get('main_workspace', '')
+        boss_sf = sig.get('boss_surface', '')
+        boss_ws = sig.get('boss_workspace', '')
         needs_send = sig.get('needs_cmux_send', False)
 
-        if main_sf and main_ws:
-            q_ws = shlex.quote(main_ws)
-            q_sf = shlex.quote(main_sf)
+        if boss_sf and boss_ws:
+            q_ws = shlex.quote(boss_ws)
+            q_sf = shlex.quote(boss_sf)
             # /cmux 전송 필요 시
             if needs_send:
                 run(f'cmux send --workspace {q_ws} --surface {q_sf} /cmux')
@@ -78,7 +78,7 @@ if os.path.exists(enter_signal):
             # 엔터 전송
             run(f'cmux send-key --workspace {q_ws} --surface {q_sf} enter')
             import sys
-            print(f'[STOP-HOOK] {main_sf}에 엔터 전송 완료', file=sys.stderr)
+            print(f'[STOP-HOOK] {boss_sf}에 엔터 전송 완료', file=sys.stderr)
 
         # 신호 파일 삭제 (1회성)
         os.unlink(enter_signal)

@@ -8,6 +8,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "cmux-jarvis", "scripts"))
 import jarvis_mentor_report as mr
+from chromadb_test_utils import create_collection, get_collection
 
 
 AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
@@ -23,9 +24,9 @@ def _add_signals(td, n=5):
     os.makedirs(mr.PALACE_PATH, exist_ok=True)
     client = chromadb.PersistentClient(path=mr.PALACE_PATH)
     try:
-        col = client.get_collection(mr.COLLECTION_NAME)
+        col = get_collection(client, mr.COLLECTION_NAME)
     except Exception:
-        col = client.create_collection(mr.COLLECTION_NAME)
+        col = create_collection(client, mr.COLLECTION_NAME)
 
     for i in range(n):
         sid = f"sig-{i}"

@@ -26,7 +26,7 @@
 
 ### CH4: JARVIS → 오케스트레이션 (능동 제어)
 - JSON Patch (⑪ 반영)
-- Main에 cmux send (하네스 추천, 재배정)
+- Boss에 cmux send (하네스 추천, 재배정)
 - cmux set-status (실시간)
 
 ## 피드백 5유형 처리

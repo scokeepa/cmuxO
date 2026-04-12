@@ -41,7 +41,7 @@ fi
 
 # --- 설정 백업 (2세대 로테이션) ---
 if [ -f "$SETTINGS" ]; then
-  # flock으로 1회만 실행 (Main/Watcher/JARVIS 중복 방지)
+  # flock으로 1회만 실행 (Boss/Watcher/JARVIS 중복 방지)
   LOCK="/tmp/cmux-jarvis-backup.lock"
   exec 9>"$LOCK"
   flock -n 9 || exit 0

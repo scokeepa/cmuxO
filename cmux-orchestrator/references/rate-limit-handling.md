@@ -164,9 +164,9 @@ eagle 스캔에서 다음 패턴 감지:
 ```
 
 ### Watcher/JARVIS 역할 분담
-- **Watcher**: eagle 스캔에서 rate limit 감지 → Main/JARVIS에 보고
+- **Watcher**: eagle 스캔에서 rate limit 감지 → Boss/JARVIS에 보고
 - **JARVIS**: 리셋 시간 추적 → 리셋 시 재시작 명령 전송 또는 Watcher에 위임
-- **Main**: 한도 걸린 surface의 미완료 작업을 다른 surface에 재배정할지 판단
+- **Boss**: 한도 걸린 surface의 미완료 작업을 다른 surface에 재배정할지 판단
 
 ### 사용자 알림
 한도 감지 시 사용자에게 알림:

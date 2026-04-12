@@ -36,7 +36,7 @@ mempalace의 L0~L3 패턴을 cmux에 맞춰 적용한다.
 ```markdown
 ## L0 — IDENTITY
 cmux 오케스트레이션 시스템의 CEO 사용자.
-Boss(Main), Watcher, JARVIS로 구성된 컨트롤 타워를 운영.
+Boss, Watcher, JARVIS로 구성된 컨트롤 타워를 운영.
 부서별 팀장-팀원 구조로 멀티 AI 작업을 조율.
 ```
 

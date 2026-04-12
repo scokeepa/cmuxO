@@ -54,18 +54,18 @@ except Exception:
     pass
 
 my_ref = f'surface:{my_surface}'
-main_ref = roles.get('main', {}).get('surface', '미등록')
+boss_ref = roles.get('boss', {}).get('surface', '미등록')
 watcher_ref = roles.get('watcher', {}).get('surface', '미등록')
 
 # 내 역할 판단
 my_role = 'unknown'
-if main_ref == my_ref:
-    my_role = 'MAIN'
+if boss_ref == my_ref:
+    my_role = 'BOSS'
 elif watcher_ref == my_ref:
     my_role = 'WATCHER'
 else:
-    # main이 없으면 main 후보
-    my_role = 'MAIN (자동)' if main_ref == '미등록' else 'WORKER'
+    # boss가 없으면 boss 후보
+    my_role = 'BOSS (자동)' if boss_ref == '미등록' else 'WORKER'
 
 # 4. 출력
 lines = []
@@ -87,7 +87,7 @@ msg = (
     f'[CMUX-ORCHESTRA v9] {count}개 surface. 소스: {scan_source}\\n\\n'
     f'나: surface:{my_surface} ({my_role})\\n'
     f'와쳐: {watcher_ref}\\n'
-    f'메인: {main_ref}\\n\\n'
+    f'사장: {boss_ref}\\n\\n'
     f'{summary}\\n\\n'
     f'워크스페이스: {ws_summary}\\n\\n'
     f'⛔ 강제 규칙 (Hook 차단):\\n'

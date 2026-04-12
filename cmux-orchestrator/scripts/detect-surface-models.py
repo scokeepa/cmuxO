@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""detect-surface-models.py v4 — 실시간 surface 모델/역할/상태 감지 + 자동 main 등록
+"""detect-surface-models.py v4 — 실시간 surface 모델/역할/상태 감지 + 자동 boss 등록
 
 핵심 강제 동작:
 1. 전 workspace 순차 스캔 (0.3초 스로틀, 소켓 보호)
-2. /cmux 입력된 surface → main으로 자동 등록 + 엔터 전송
+2. /cmux 입력된 surface → boss로 자동 등록 + 엔터 전송
 3. 역할 레지스트리(/tmp/cmux-roles.json) 자동 갱신
 4. 스캔 결과를 /tmp/cmux-surface-scan.json에 자동 저장
 5. Apple Vision OCR fallback (screen text 감지 실패 시)
@@ -266,31 +266,31 @@ def main():
 
         # --- 단계 2: Vision도 실패 → 같은 workspace IDLE Opus에 /cmux 직접 전송 ---
         if not cmux_surfaces:
-            print("[FORCE] 감지 전부 실패 → IDLE surface를 main 후보로 등록 (엔터는 step 3에서)", file=sys.stderr)
+            print("[FORCE] 감지 전부 실패 → IDLE surface를 boss 후보로 등록 (엔터는 step 3에서)", file=sys.stderr)
             my_ref = f"surface:{self_surface}"
             for s, i in result.items():
                 if s == my_ref:
                     continue
                 if i.get("status") in ("IDLE", "UNKNOWN") and ("Opus" in i.get("model","") or "Claude" in i.get("model","")):
                     ws = i.get("workspace", "")
-                    print(f"[FORCE] {s} → main 후보 (엔터는 아직 안 침)", file=sys.stderr)
+                    print(f"[FORCE] {s} → boss 후보 (엔터는 아직 안 침)", file=sys.stderr)
                     cmux_surfaces.append((s, ws))
                     result[s]["has_cmux"] = True
                     result[s]["needs_cmux_send"] = True  # step 3에서 /cmux 전송 필요
                     break
 
-    # === 1. main 역할 등록 (엔터 전에 먼저) ===
+    # === 1. boss 역할 등록 (엔터 전에 먼저) ===
     if cmux_surfaces and not no_activate:
         roles = load_roles()
         now_iso = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-        main_surf, main_ws = cmux_surfaces[0]
-        roles["main"] = {
-            "surface": main_surf, "workspace": main_ws,
+        boss_surf, boss_ws = cmux_surfaces[0]
+        roles["boss"] = {
+            "surface": boss_surf, "workspace": boss_ws,
             "pid": os.getpid(), "started_at": now_iso, "last_heartbeat": now_iso,
         }
         save_roles(roles)
-        result[main_surf]["role"] = "main"
-        print(f"[AUTO] {main_surf} → main 등록 완료", file=sys.stderr)
+        result[boss_surf]["role"] = "boss"
+        print(f"[AUTO] {boss_surf} → boss 등록 완료", file=sys.stderr)
 
     # === 2. 스캔 결과 저장 (와쳐 자신도 포함!) ===
     if not no_save:
@@ -320,11 +320,11 @@ def main():
 
     # === 3. 엔터 신호 파일 생성 (detect 안에서 엔터 안 침! Stop hook이 처리) ===
     if cmux_surfaces and not no_activate and caller_is_watcher:
-        main_surf, main_ws = cmux_surfaces[0]
-        needs_send = result.get(main_surf, {}).get("needs_cmux_send", False)
+        boss_surf, boss_ws = cmux_surfaces[0]
+        needs_send = result.get(boss_surf, {}).get("needs_cmux_send", False)
         signal = {
-            "main_surface": main_surf,
-            "main_workspace": main_ws,
+            "boss_surface": boss_surf,
+            "boss_workspace": boss_ws,
             "needs_cmux_send": needs_send,
             "ready_at": datetime.now(timezone.utc).isoformat(),
         }

@@ -24,7 +24,7 @@
 - PostCompact: **기존 0개 → JARVIS 최초 등록**
 
 ## surface별 동작
-| hook | JARVIS | Main | Worker | Watcher |
+| hook | JARVIS | Boss | Worker | Watcher |
 |------|--------|------|--------|---------|
 | gate.sh | GATE 전체 | 즉시 allow (~1ms) | Worker 분기 | 즉시 allow |
 | session-start | additionalContext 전체 | 빈 context | - | 빈 context |

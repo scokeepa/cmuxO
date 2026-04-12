@@ -116,10 +116,10 @@ def dequeue_next():
     return result[0]
 
 
-def is_main_surface():
-    """현재 surface가 오케스트레이션 사장(Main)인지 판별.
-    Main이면 True → 워크플로우 규율 적용.
-    Main이 아니면 False → 제한 없이 통과.
+def is_boss_surface():
+    """현재 surface가 오케스트레이션 사장(Boss)인지 판별.
+    Boss이면 True -> 워크플로우 규율 적용.
+    Boss가 아니면 False → 제한 없이 통과.
     cmux 환경이 아니거나 식별 실패 시 False (안전하게 통과).
     """
     import subprocess
@@ -137,8 +137,8 @@ def is_main_surface():
         return False
 
     roles = load_json_safe("/tmp/cmux-roles.json")
-    main_surface = roles.get("main", {}).get("surface", "")
-    return my_surface == main_surface and main_surface != ""
+    boss_surface = roles.get("boss", {}).get("surface", "")
+    return my_surface == boss_surface and boss_surface != ""
 
 
 def complete_task(task_id, status="done"):

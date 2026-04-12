@@ -16,10 +16,10 @@
 ### cmuxreview (Sonnet) — 코드 리뷰어
 
 **역할**: cmux AI가 코드를 반환하면, git diff를 리뷰하고 이슈를 보고.
-**모델**: **Sonnet** (⚠️ Opus 금지 — Main Opus와 동시 실행 시 529 위험)
+**모델**: **Sonnet** (⚠️ Opus 금지 — Boss Opus와 동시 실행 시 529 위험)
 **장착 스킬**: code-reviewer-pro (correctness→security→performance→maintainability)
 
-> **왜 Sonnet?**: 계정 통합 rate limit이므로 Opus 2개(Main+Sub) 동시 = 529 위험.
+> **왜 Sonnet?**: 계정 통합 rate limit이므로 Opus 2개(Boss+Sub) 동시 = 529 위험.
 > Sonnet은 코드리뷰에 충분한 품질이며 비용도 1/5.
 
 ```
@@ -113,7 +113,7 @@ Agent(subagent_type="general-purpose", model="haiku", name="cmuxdiagnostic",
 | API 설계 | `backend-architect` | sonnet | 아키텍처 설계 검증 |
 
 > **모두 Claude Code 내장 subagent_type.** 별도 설치 불필요.
-> 529 예산: Main(1) + 서브에이전트(최대 1) = 동시 2개. 순차 사용은 자유.
+> 529 예산: Boss(1) + 서브에이전트(최대 1) = 동시 2개. 순차 사용은 자유.
 
 ## 서브에이전트 스킬 주입 메커니즘
 
@@ -187,21 +187,21 @@ model: inherit
 ```
 사용자 요청: "코드 구현 + 리뷰 + 보안 검사"
 
-Phase 1: Main 구현 (또는 cmux send로 위임)
+Phase 1: Boss 구현 (또는 cmux send로 위임)
   ↓
 Phase 2: cmuxreview (code-reviewer-pro + 11 skills)
-  → Main이 결과 검증 → APPROVE/REJECT
+  → Boss가 결과 검증 → APPROVE/REJECT
   ↓
 Phase 3: security-auditor (15 skills)
-  → Main이 결과 검증 → 보안 이슈 수정
+  → Boss가 결과 검증 → 보안 이슈 수정
   ↓
 Phase 4: test-automator
   → 테스트 자동 생성
   ↓
-Phase 5: Main 커밋
+Phase 5: Boss 커밋
 ```
 
-**529 안전**: 각 Phase에서 서브에이전트 **1개만** 실행 → Main + Sub = 2개 (안전).
+**529 안전**: 각 Phase에서 서브에이전트 **1개만** 실행 → Boss + Sub = 2개 (안전).
 
 ## 지속 스킬 최적화 프로토콜
 
@@ -226,7 +226,7 @@ Phase 5: Main 커밋
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 Main Opus 전용 업무 (직접 수행)               │
+│                 Boss Opus 전용 업무 (직접 수행)               │
 │                                                              │
 │  1. 오케스트레이션: 작업 큐 관리, cmux send 작업 분배        │
 │  2. 계획 수립: 태스크 분해, 난이도 판정, surface 배정         │
@@ -234,7 +234,7 @@ Phase 5: Main 커밋
 │  4. 커밋 판단: 리뷰 결과 보고 읽고 커밋/거부 결정            │
 │  5. eagle 상태 읽기: cat /tmp/cmux-eagle-status.json         │
 │                                                              │
-│  ❌ Main이 하면 안 되는 것:                                   │
+│  ❌ Boss가 하면 안 되는 것:                                   │
 │  - 직접 코딩 (cmux send로 위임)                              │
 │  - 직접 코드리뷰 (cmuxreview 서브에이전트에 위임)            │
 │  - 수동 폴링 (eagle_watcher.sh가 자동)                       │

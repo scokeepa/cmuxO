@@ -48,7 +48,7 @@ bash ${SKILL_DIR:=$HOME/.claude/skills/cmux-orchestrator}/scripts/eagle_watcher.
 ### `리뷰` / `review`
 ```
 → Agent(subagent_type="code-reviewer", model="sonnet") 디스패치
-→ Main 직접 리뷰 금지 (GATE 2)
+→ Boss 직접 리뷰 금지 (GATE 2)
 ```
 
 ### `커밋` / `commit`
@@ -126,7 +126,7 @@ python3 ${SKILL_DIR}/scripts/manage-ai-profile.py --remove <이름>
 ## 강제 규칙 (모든 라우트에 적용)
 
 1. **WORKING surface 있으면 커밋/종료 금지** (gate-blocker.sh가 물리적 차단)
-2. **코드리뷰는 서브에이전트 필수** (Main 직접 금지)
+2. **코드리뷰는 서브에이전트 필수** (Boss 직접 금지)
 3. **surface 확인은 cmux read-screen 직접** (재질문 금지)
 4. **speckit 미완료 태스크 → 재배정 필수** (단순 스킵 금지)
 5. **작업 전 /new /clear 초기화 필수**

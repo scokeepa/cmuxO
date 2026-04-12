@@ -2,7 +2,7 @@
 # cmux-watcher-session.sh — SessionStart hook (v3)
 # detect-surface-models.py v4가 모든 것을 자동 처리:
 #   1. 전 surface 스캔 (스로틀 + Vision OCR fallback)
-#   2. /cmux 감지 → main 자동 등록 + 엔터 전송
+#   2. /cmux 감지 → boss 자동 등록 + 엔터 전송
 #   3. 스캔 결과 /tmp/cmux-surface-scan.json 자동 저장
 #   4. 역할 /tmp/cmux-roles.json 자동 갱신
 # 이 hook은 결과를 읽어서 AI context에 주입하기만 함.
@@ -60,21 +60,21 @@ except: pass
 
 total = len(surfaces)
 idle = sum(1 for s in surfaces.values() if s.get('status') == 'IDLE')
-main_ref = roles.get('main', {}).get('surface', '미등록')
+boss_ref = roles.get('boss', {}).get('surface', '미등록')
 watcher_ref = roles.get('watcher', {}).get('surface', '미등록')
 
 # surface 요약
 lines = []
 for s, i in sorted(surfaces.items(), key=lambda x: int(x[0].split(':')[1])):
     tag = ''
-    if i.get('has_cmux'): tag = ' [/cmux→main]'
+    if i.get('has_cmux'): tag = ' [/cmux→boss]'
     lines.append(f'  {s} = {i.get(\"model\",\"?\")} ({i.get(\"status\",\"?\")}, {i.get(\"role\",\"?\")}){tag}')
 summary = chr(10).join(lines)
 
 msg = f'''[CMUX-WATCHER v3.5] {total}개 surface 스캔 완료.
 감지 계층: L1(Eagle)✅ L2(ANE-OCR)✅ L2.5(VisionDiff)✅ L3(pipe-pane)✅ — 전 계층 강제 가동
 나: {watcher_ref} (WATCHER)
-메인: {main_ref}
+사장: {boss_ref}
 
 {summary}
 
@@ -82,7 +82,7 @@ msg = f'''[CMUX-WATCHER v3.5] {total}개 surface 스캔 완료.
 ⛔ 작업 배정/코드 수정 금지.
 ⛔ 사용자에게 질문 절대 금지 ("시작할까요?", "어떻게 할까요?" 등 일체 금지).
 ⛔ 감시 모드 시작 여부 묻지 말 것 — /tmp/cmux-dispatch-signal.json 파일이 나타나면 자동 시작.
-와쳐는 대기하면서 Main의 dispatch 신호를 폴링한다. 신호 감지 시 연속 감시 자동 시작.
+와쳐는 대기하면서 Boss의 dispatch 신호를 폴링한다. 신호 감지 시 연속 감시 자동 시작.
 surface 스캔: python3 {os.environ.get(\"HOME\",\"~\")}/.claude/skills/cmux-orchestrator/scripts/detect-surface-models.py {\"$MY_NUM\"}
 개별 읽기: bash {os.environ.get(\"HOME\",\"~\")}/.claude/skills/cmux-orchestrator/scripts/read-surface.sh N --lines 20'''
 

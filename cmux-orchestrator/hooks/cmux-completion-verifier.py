@@ -17,7 +17,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
-from cmux_utils import is_main_surface
+from cmux_utils import is_boss_surface
 from leceipts_validator import is_git_commit
 
 VERIFY_FLAG = "/tmp/cmux-verification-passed"
@@ -28,8 +28,8 @@ def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
         print(json.dumps({"decision": "approve"}))
         return
-    # Main surface에서만 검증 강제. JARVIS/Watcher/팀장 등 다른 세션은 자유.
-    if not is_main_surface():
+    # Boss surface에서만 검증 강제. JARVIS/Watcher/팀장 등 다른 세션은 자유.
+    if not is_boss_surface():
         # JARVIS, Watcher, 팀장 surface는 면제
         print(json.dumps({"decision": "approve"}))
         return

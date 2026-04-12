@@ -8,6 +8,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "cmux-jarvis", "scripts"))
 import jarvis_palace_memory as pm
+from chromadb_test_utils import create_collection, get_collection
 
 
 def _setup(td):
@@ -23,9 +24,9 @@ def _add_test_signals(td, n=5):
     os.makedirs(pm.PALACE_PATH, exist_ok=True)
     client = chromadb.PersistentClient(path=pm.PALACE_PATH)
     try:
-        col = client.get_collection(pm.COLLECTION_NAME)
+        col = get_collection(client, pm.COLLECTION_NAME)
     except Exception:
-        col = client.create_collection(pm.COLLECTION_NAME)
+        col = create_collection(client, pm.COLLECTION_NAME)
 
     for i in range(n):
         sid = f"sig-test-{i}"
@@ -91,7 +92,7 @@ def test_semantic_search():
         import chromadb
         os.makedirs(pm.PALACE_PATH, exist_ok=True)
         client = chromadb.PersistentClient(path=pm.PALACE_PATH)
-        col = client.create_collection(pm.COLLECTION_NAME)
+        col = create_collection(client, pm.COLLECTION_NAME)
         col.add(ids=["s1"], documents=["testing validation review check"], metadatas=[{"wing": "cmux_mentor", "room": "verify"}])
         col.add(ids=["s2"], documents=["task decomposition breakdown clear"], metadatas=[{"wing": "cmux_mentor", "room": "decomp"}])
 

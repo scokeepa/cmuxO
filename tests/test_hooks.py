@@ -136,7 +136,7 @@ def test_individual_mode_approve():
 
 def test_malformed_json_stdin():
     """Malformed JSON should trigger fail-safe, not crash."""
-    # cmux-control-tower-guard.py: is_main_surface 체크 없어 malformed JSON 경로 진입 보장
+    # cmux-control-tower-guard.py: surface 체크 없어 malformed JSON 경로 진입 보장
     for hook in ["cmux-control-tower-guard.py"]:
         stdout, stderr, rc = run_hook(hook, "not json at all", orch_mode=True)
         if stdout is None:

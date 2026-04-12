@@ -35,8 +35,8 @@ def main():
         return
 
     try:
-        from cmux_utils import is_main_surface
-        if not is_main_surface():
+        from cmux_utils import is_boss_surface
+        if not is_boss_surface():
             print(json.dumps({"decision": "approve"}))
             return
     except ImportError:

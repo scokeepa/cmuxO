@@ -9,7 +9,7 @@
 | **L0: PreToolUse block** | `gate-blocker.sh` → `git commit` 물리적 차단 | WORKING/미완료 시 커밋 차단 | ⛔ **AI 무시 불가** |
 | **L1: cmux set-hook** | `after-send-keys` → eagle 자동 갱신 | surface 상태 실시간 감시 | 자동 |
 | **L2: PostToolUse 경고** | `gate-enforcer.py` + `cmux-idle-reminder.sh` | WORKING/ERROR/WAITING 경고 주입 | 경고 |
-| **L3: SKILL.md GATE** | 5-GATE 체크리스트 (이 문서) | Main 행동 제한 | 텍스트 |
+| **L3: SKILL.md GATE** | 5-GATE 체크리스트 (이 문서) | Boss 행동 제한 | 텍스트 |
 
 ## L0: 물리적 차단 (PreToolUse Hook)
 
@@ -69,7 +69,7 @@ cmux set-hook after-send-keys "bash ${SKILL_DIR}/scripts/eagle_watcher.sh --once
 
 - UserPromptSubmit 훅으로 등록
 - IDLE surface 자동 감지
-- Main에게 IDLE surface 알림
+- Boss에게 IDLE surface 알림
 
 ### speckit-tracker (태스크 추적)
 
@@ -98,7 +98,7 @@ python3 ${SKILL_DIR}/scripts/speckit-tracker.py --gate
 | "이 프롬프트를 붙여넵어주세요" | `cmux send --surface surface:N "프롬프트"` |
 | "surface:N에 입력해주세요" | `cmux send --surface surface:N "내용"` + `cmux send-key enter` |
 | "다른 AI에게 전달해주세요" | `cmux send --surface surface:N "내용"` |
-| "사용자가 직접 전달" | Main이 cmux send로 직접 전달 |
+| "사용자가 직접 전달" | Boss가 cmux send로 직접 전달 |
 
 ### GATE 1: 과업 완료 GATE
 
@@ -110,15 +110,15 @@ python3 ${SKILL_DIR}/scripts/speckit-tracker.py --gate
 ### GATE 2: 코드리뷰 위임 GATE
 
 ```
-⛔ Main(Opus)이 직접 코드리뷰를 하면 안 된다.
+⛔ Boss(Opus)이 직접 코드리뷰를 하면 안 된다.
 → Agent(subagent_type="code-reviewer", model="sonnet", run_in_background=true) 디스패치
-→ Main은 결과만 읽고 APPROVE/REJECT 판단
-예외: 서브에이전트가 3회 실패한 경우에만 Main 직접 리뷰 허용 (사유 기록 필수)
+→ Boss는 결과만 읽고 APPROVE/REJECT 판단
+예외: 서브에이전트가 3회 실패한 경우에만 Boss 직접 리뷰 허용 (사유 기록 필수)
 ```
 
 ### GATE 3: 서브에이전트 사용 GATE
 
-| 작업 | 필수 에이전트 | Main 직접 금지 |
+| 작업 | 필수 에이전트 | Boss 직접 금지 |
 |------|-------------|--------------|
 | 코드리뷰 | Agent(code-reviewer, sonnet) | ⛔ |
 | 코드리뷰 (보안) | Agent(code-reviewer, sonnet) | ⛔ |
@@ -127,7 +127,7 @@ python3 ${SKILL_DIR}/scripts/speckit-tracker.py --gate
 
 ```
 □ GATE 1: 모든 surface DONE 확인 (WORKING/미확인 없음)
-□ GATE 2: 코드리뷰 서브에이전트 위임 (Main 직접 리뷰 0건)
+□ GATE 2: 코드리뷰 서브에이전트 위임 (Boss 직접 리뷰 0건)
 □ GATE 3: 서브에이전트 사용 규칙 준수
 □ GATE 5: speckit 태스크 전체 완료 (미완료 0개 — 재배정 포함)
 □ GATE 6: Agent 도구 오용 0건 (탐색/구현/조사 서브에이전트 디스패치 0건, 전부 cmux send)

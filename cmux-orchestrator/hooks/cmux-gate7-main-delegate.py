@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """cmux-gate7-main-delegate.py — PreToolUse Hook (GATE 7 L0)
 
-사장(Main)이 IDLE worker surface가 있을 때 직접 작업 도구를 사용하는 것을 차단.
+사장(Boss)이 IDLE worker surface가 있을 때 직접 작업 도구를 사용하는 것을 차단.
 GATE 6이 Agent 도구만 차단하는 것을 보완하여, Read/Edit/Grep/Glob/Write도 차단.
 
 허용 예외:
 - /tmp/cmux-* 상태 파일 읽기 (오케스트레이션 관리)
 - cmux 명령어 실행 (Bash)
 - 오케스트레이션 비활성 상태
-- Main이 아닌 surface
+- Boss가 아닌 surface
 """
 import json
 import os
@@ -16,7 +16,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
-from cmux_utils import load_json_safe, is_main_surface
+from cmux_utils import load_json_safe, is_boss_surface
 
 # 차단 대상 도구
 BLOCKED_TOOLS = {"Read", "Edit", "Grep", "Glob", "Write"}
@@ -82,8 +82,8 @@ def main():
         print(json.dumps({"decision": "approve"}))
         return
 
-    # Main surface가 아니면 패스
-    if not is_main_surface():
+    # Boss surface가 아니면 패스
+    if not is_boss_surface():
         print(json.dumps({"decision": "approve"}))
         return
 

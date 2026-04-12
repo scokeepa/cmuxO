@@ -43,7 +43,7 @@ roles = json.load(open('/tmp/cmux-roles.json'))
 stats = eagle['stats']
 surfaces = eagle['surfaces']
 
-main_ws = roles.get('main',{}).get('workspace','')
+boss_ws = roles.get('boss',{}).get('workspace','')
 jarvis_sid = roles.get('jarvis',{}).get('surface','')
 
 # 컨트롤 타워 vs 부서 분리
@@ -51,7 +51,7 @@ ctrl_surfaces = []
 dept_workspaces = {}
 for sid, info in surfaces.items():
     ws = info.get('workspace','')
-    if ws == main_ws:
+    if ws == boss_ws:
         ctrl_surfaces.append(f'surface:{sid} ({info[\"status\"]})')
     else:
         dept_workspaces.setdefault(ws, []).append({'sid':sid, 'status':info['status'], 'title':info.get('title','')})
@@ -187,8 +187,8 @@ python3 ~/.claude/skills/cmux-orchestrator/scripts/cmux_compat.py stop 2>/dev/nu
 rm -f /tmp/cmux-paused.flag
 
 # 컨트롤 타워 workspace 이름 복원
-MAIN_WS=$(cmux identify 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin)['caller']['workspace_ref'])" 2>/dev/null)
-cmux rename-workspace --workspace $MAIN_WS "$(basename $HOME)"
+BOSS_WS=$(cmux identify 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin)['caller']['workspace_ref'])" 2>/dev/null)
+cmux rename-workspace --workspace $BOSS_WS "$(basename $HOME)"
 cmux rename-tab --surface $(cmux identify 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin)['caller']['surface_ref'])" 2>/dev/null) "Claude Code"
 ```
 

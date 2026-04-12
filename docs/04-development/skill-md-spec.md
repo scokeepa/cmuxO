@@ -3,7 +3,7 @@
 > 정본. SKILL.md 작성 시 이 사양을 따름.
 
 ## 문제
-SKILL.md가 100줄이면 **모든 surface** (Main/Worker/Watcher)에서 불필요하게 로드.
+SKILL.md가 100줄이면 **모든 surface** (Boss/Worker/Watcher)에서 불필요하게 로드.
 → surface당 ~3000토큰 낭비.
 
 ## 해결: 2단계 분리

@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone, timedelta
 
 import logging
@@ -38,6 +39,7 @@ PALACE_PATH = os.path.expanduser("~/.cmux-jarvis-palace")
 COLLECTION_NAME = "cmux_mentor_signals"
 COOLDOWN_SECONDS = 300
 ALLOWED_ISSUERS = {"team_lead", "boss", "jarvis"}
+VALID_REASON_CODES = {"STALLED", "IDLE", "instruction_drift", "no_done_report", "rate_limited"}
 ROLES_PATH = "/tmp/cmux-roles.json"
 SURFACE_MAP_PATH = "/tmp/cmux-surface-map.json"
 
@@ -80,7 +82,7 @@ def _store_nudge_audit(event):
         "outcome": event["outcome"],
         "ts": event["timestamp"],
     }
-    col.add(ids=[f"nudge-{event['timestamp']}"], documents=[doc], metadatas=[meta])
+    col.add(ids=[f"nudge-{event['timestamp']}-{uuid.uuid4().hex}"], documents=[doc], metadatas=[meta])
 
 
 def _check_cooldown(target):
@@ -133,11 +135,10 @@ def _validate_issuer_authority(issuer, target):
     if not roles:
         return None  # 런타임 데이터 없음 — fallback to ALLOWED_ISSUERS only
 
-    # issuer의 workspace 찾기
+    # issuer의 workspace 찾기. Runtime roles SSOT는 roles['boss']만 허용한다.
     issuer_info = roles.get(issuer)
     if not issuer_info:
-        # roles.json에 issuer 역할이 없으면 검증 스킵 (단독 실행 등)
-        return None
+        return f"issuer {issuer} is not registered in roles"
 
     issuer_ws = issuer_info.get("workspace")
 
@@ -151,7 +152,7 @@ def _validate_issuer_authority(issuer, target):
             break
 
     if not target_ws:
-        return None  # target이 roles에 없으면 검증 스킵
+        return f"target {target} is not registered in roles"
 
     # 권한 매트릭스 적용 (nudge-escalation.md)
     if issuer == "team_lead":
@@ -190,6 +191,9 @@ def cmd_send(target, issuer, reason, evidence, level="L1"):
     if issuer not in ALLOWED_ISSUERS:
         print(json.dumps({"error": f"invalid issuer: {issuer}", "code": 1}))
         return 1
+    if reason not in VALID_REASON_CODES:
+        print(json.dumps({"error": f"invalid reason_code: {reason}", "code": 1}))
+        return 1
 
     # surface_map 기반 권한 검증 (런타임 파일 있을 때만)
     auth_error = _validate_issuer_authority(issuer, target)
@@ -201,20 +205,21 @@ def cmd_send(target, issuer, reason, evidence, level="L1"):
     if in_cooldown:
         rate_event = {
             "timestamp": utc_str(), "target_surface_id": target, "issuer_role": issuer,
-            "reason_code": "nudge_rate_limited", "evidence_span": f"cooldown until {until}",
+            "reason_code": "rate_limited", "evidence_span": f"cooldown until {until}",
             "level": level, "cooldown_until": until, "outcome": "rate_limited",
         }
         _store_nudge_audit(rate_event)
         print(json.dumps({"error": "cooldown active", "cooldown_until": until, "code": 2}))
         return 2
 
-    message = f"현재 {evidence}. 60초 안에 DONE, BLOCKED, NEEDS_INFO 중 하나로 보고하세요."
+    safe_evidence = _redact_text(evidence)
+    message = f"현재 {safe_evidence}. 60초 안에 DONE, BLOCKED, NEEDS_INFO 중 하나로 보고하세요."
     sent = _cmux_send(target, message)
 
     now = utc_now()
     event = {
         "timestamp": utc_str(now), "target_surface_id": target, "issuer_role": issuer,
-        "reason_code": reason, "evidence_span": evidence, "level": level,
+        "reason_code": reason, "evidence_span": safe_evidence, "level": level,
         "cooldown_until": utc_str(now + timedelta(seconds=COOLDOWN_SECONDS)),
         "outcome": "sent" if sent else "failed",
     }

@@ -1,7 +1,7 @@
 {
   "created_at": "2026-03-18T16:55:00Z",
   "updated_at": "2026-04-11T10:04:30Z",
-  "_note": "workspaces/surfaces는 런타임에 cmux tree --all로 동적 구성. presets만 정본. 아래 surfaces/main_surface/watcher_surface/main_ai/auto_synced는 deprecated — runtime SSOT는 /tmp/cmux-surface-map.json + cmux tree --all. compat 이관 후 제거 예정.",
+  "_note": "workspaces/surfaces는 런타임에 cmux tree --all로 동적 구성. presets만 정본. 아래 surfaces/boss_surface/watcher_surface/boss_ai/auto_synced는 deprecated — runtime SSOT는 /tmp/cmux-surface-map.json + cmux tree --all. compat 이관 후 제거 예정.",
   "presets": {
     "codex": {
       "start": "codex",
@@ -50,7 +50,7 @@
   "surfaces": {
     "1": {
       "ai": "Claude Code",
-      "role": "main",
+      "role": "boss",
       "start_cmd": "claude",
       "quit_cmd": "/exit",
       "reset_cmd": "/clear",
@@ -75,11 +75,11 @@
     },
     "5": {
       "ai": "Codex",
-      "role": "main"
+      "role": "boss"
     }
   },
-  "main_surface": "1",
+  "boss_surface": "1",
   "watcher_surface": "2",
-  "main_ai": "Opus",
+  "boss_ai": "Opus",
   "auto_synced": true
 }

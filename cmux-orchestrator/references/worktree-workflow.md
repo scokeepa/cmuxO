@@ -39,12 +39,12 @@ node_modules/.bin/tsc --noEmit  # 심볼릭 링크 필요 시: ln -s "$PROJECT/n
 git -C "/tmp/wt-codex-${ROUND}" diff HEAD
 ```
 
-### Step 4: Main 병합 판단
+### Step 4: Boss 병합 판단
 
 ```bash
 cd "$PROJECT"
 
-# 순차 병합 (충돌 시 Main이 해결 — 유일한 코드 수정 허용)
+# 순차 병합 (충돌 시 Boss가 해결 — 유일한 코드 수정 허용)
 git merge "codex-${ROUND}" --no-edit
 git merge "glm1-${ROUND}" --no-edit
 git merge "glm2-${ROUND}" --no-edit
@@ -91,7 +91,7 @@ ln -s "$PROJECT/node_modules" "/tmp/wt-codex-${ROUND}/node_modules"
 git merge "glm1-${ROUND}"
 # CONFLICT 발생 시:
 git diff --name-only --diff-filter=U  # 충돌 파일 목록
-# Main이 직접 해결 (이것은 코드 수정 허용 예외)
+# Boss가 직접 해결 (이것은 코드 수정 허용 예외)
 git add <resolved_files>
 git commit  # merge commit
 ```

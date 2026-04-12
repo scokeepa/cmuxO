@@ -3,11 +3,11 @@
 
 지정 surface들의 DONE을 4계층 전부 사용하여 감지.
 DONE 판정 시 30초 후 재검증(Vision Diff) 필수.
-Main에만 보고 — Worker 개입 절대 금지 (GATE W-9).
+Boss에만 보고 — Worker 개입 절대 금지 (GATE W-9).
 
 Usage:
-    python3 surface-monitor.py --targets "1 3 4 21 22" --main surface:28
-    python3 surface-monitor.py --targets "7" --main surface:28 --interval 15
+    python3 surface-monitor.py --targets "1 3 4 21 22" --boss surface:28
+    python3 surface-monitor.py --targets "7" --boss surface:28 --interval 15
 """
 
 import argparse
@@ -48,11 +48,11 @@ def ts() -> str:
     return time.strftime("%H:%M:%S")
 
 
-def notify_main(main_sf: str, msg: str) -> None:
-    """Main에 cmux send + enter. Worker에는 절대 전송 금지."""
-    run_cmd(["cmux", "send", "--surface", main_sf, msg], timeout=5)
+def notify_boss(boss_sf: str, msg: str) -> None:
+    """Boss에 cmux send + enter. Worker에는 절대 전송 금지."""
+    run_cmd(["cmux", "send", "--surface", boss_sf, msg], timeout=5)
     time.sleep(0.5)
-    run_cmd(["cmux", "send-key", "--surface", main_sf, "enter"], timeout=5)
+    run_cmd(["cmux", "send-key", "--surface", boss_sf, "enter"], timeout=5)
 
 
 # ---------------------------------------------------------------------------
@@ -187,10 +187,10 @@ def judge_status(state: SurfaceState) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main Monitor Loop
+# Boss Monitor Loop
 # ---------------------------------------------------------------------------
 
-def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int):
+def run_monitor(targets: list[str], boss_sf: str, interval: int, max_rounds: int):
     states: dict[str, SurfaceState] = {sid: SurfaceState(sid) for sid in targets}
     done_set: set[str] = set()
     target_count = len(targets)
@@ -247,7 +247,7 @@ def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int
                 print(f"[{ts()}] surface:{sid} DONE 감지 → 30초 재검증 시작 [{layers}]")
             elif status == "WAITING":
                 print(f"[{ts()}] surface:{sid} WAITING (질문 대기) [{layers}]")
-                notify_main(main_sf, f"[WATCHER→MAIN] WAITING: surface:{sid} 사용자 입력 대기 중")
+                notify_boss(boss_sf, f"[WATCHER→BOSS] WAITING: surface:{sid} 사용자 입력 대기 중")
             elif status == "STALLED":
                 print(f"[{ts()}] surface:{sid} STALLED (화면 고정) [{layers}]")
             else:
@@ -268,7 +268,7 @@ def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int
                     states[sid].final_status = recheck_l1
                     states[sid].recheck_passed = False
                     if recheck_l1 == "WAITING":
-                        notify_main(main_sf, f"[WATCHER→MAIN] WAITING: surface:{sid} 사용자 입력 대기 중")
+                        notify_boss(boss_sf, f"[WATCHER→BOSS] WAITING: surface:{sid} 사용자 입력 대기 중")
                 else:
                     # L2.5 Vision Diff 재확인
                     recheck_cleaned = clean_for_diff(recheck_text)
@@ -286,11 +286,11 @@ def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int
                         done_set.add(sid)
                         done_count = len(done_set)
                         remaining = target_count - done_count
-                        notify_main(main_sf,
-                            f"[WATCHER→MAIN] DONE: s:{sid} 완료 ({done_count}/{target_count}). "
+                        notify_boss(boss_sf,
+                            f"[WATCHER→BOSS] DONE: s:{sid} 완료 ({done_count}/{target_count}). "
                             f"s:{sid} 지금 IDLE — 다음 작업 배정하세요!"
                             + (f" 나머지 {remaining}개 작업 중." if remaining > 0 else ""))
-                        print(f"[{ts()}] Main 즉시 알림: s:{sid} ({done_count}/{target_count}) + IDLE 재배정 촉구")
+                        print(f"[{ts()}] Boss 즉시 알림: s:{sid} ({done_count}/{target_count}) + IDLE 재배정 촉구")
                     states[sid].l25_prev_text = recheck_cleaned
 
         # === IDLE 재촉: DONE 확정 후 60초+ 경과한 surface가 여전히 IDLE이면 재촉 ===
@@ -304,12 +304,12 @@ def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int
             if idle_still:
                 idle_list = ", ".join(f"s:{s}" for s in idle_still)
                 print(f"[{ts()}] IDLE 재촉: {idle_list} 아직 놀고 있음")
-                notify_main(main_sf, f"[WATCHER→MAIN] ⚠️ IDLE 재촉: {idle_list} 아직 놀고 있음! 작업 배정하세요!")
+                notify_boss(boss_sf, f"[WATCHER→BOSS] ⚠️ IDLE 재촉: {idle_list} 아직 놀고 있음! 작업 배정하세요!")
 
         # === 전부 DONE이면 최종 알림 ===
         if len(done_set) >= target_count:
             print(f"[{ts()}] ALL {target_count} DONE ✅✅✅")
-            notify_main(main_sf, f"[WATCHER→MAIN] ⚠️ ALL {target_count} DONE: 전부 완료! 즉시 결과 수집.")
+            notify_boss(boss_sf, f"[WATCHER→BOSS] ⚠️ ALL {target_count} DONE: 전부 완료! 즉시 결과 수집.")
             return
 
         # DONE 재검증에서 30초 썼으면 interval 조절
@@ -321,7 +321,7 @@ def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int
     remaining = [sid for sid in targets if sid not in done_set]
     print(f"[{ts()}] 타임아웃. {done_count}/{target_count} 완료. 미완료: {remaining}")
     if done_count > 0 or remaining:
-        notify_main(main_sf, f"[WATCHER→MAIN] TIMEOUT: {done_count}/{target_count} 완료. 미완료: s:{', s:'.join(remaining)}")
+        notify_boss(boss_sf, f"[WATCHER→BOSS] TIMEOUT: {done_count}/{target_count} 완료. 미완료: s:{', s:'.join(remaining)}")
 
 
 # ---------------------------------------------------------------------------
@@ -331,13 +331,13 @@ def run_monitor(targets: list[str], main_sf: str, interval: int, max_rounds: int
 def main():
     parser = argparse.ArgumentParser(description="4계층 강제 surface 모니터링")
     parser.add_argument("--targets", required=True, help="모니터링 대상 surface IDs (공백 구분)")
-    parser.add_argument("--main", required=True, help="Main surface (예: surface:28)")
+    parser.add_argument("--boss", required=True, help="Boss surface (예: surface:28)")
     parser.add_argument("--interval", type=int, default=20, help="폴링 간격 초 (기본 20)")
     parser.add_argument("--max-rounds", type=int, default=90, help="최대 라운드 (기본 90)")
     args = parser.parse_args()
 
     targets = args.targets.split()
-    run_monitor(targets, args.main, args.interval, args.max_rounds)
+    run_monitor(targets, args.boss, args.interval, args.max_rounds)
 
 
 if __name__ == "__main__":

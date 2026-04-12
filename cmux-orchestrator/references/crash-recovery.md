@@ -15,12 +15,12 @@ If cmux process crashes while orchestration is running:
 6. IDLE surfaces → re-dispatch tasks
 7. WORKING surfaces → wait for completion
 
-## Main session crash
+## Boss session crash
 
-If Claude Code session running Main (COO) closes unexpectedly:
+If Claude Code session running Boss (COO) closes unexpectedly:
 
 1. Open new Claude Code in the same surface
-2. Run `/cmux-start` — it will re-register Main
+2. Run `/cmux-start` — it will re-register Boss
 3. Check `/tmp/cmux-surface-map.json` for department status
 4. Resume orchestration from last known state
 
@@ -35,11 +35,11 @@ Handled automatically:
 
 Watcher detects surfaces registered in roles.json but missing from cmux tree:
 - Alert: "ORPHAN_SURFACE: registered but not found"
-- Action: Main updates roles.json to remove orphaned entries
+- Action: Boss updates roles.json to remove orphaned entries
 
 ## Lost uncommitted work
 
-If surface completes (DONE) but Main crashes before reading:
+If surface completes (DONE) but Boss crashes before reading:
 1. Surface still has changes in working directory
 2. Check: `cmux read-screen --workspace WS --surface SID --scrollback --lines 100`
 3. Look for file paths in DONE output

@@ -27,7 +27,7 @@
 ```bash
 variable_workspace="workspace:1"  # string
 
-# 키 입력 후 자동 eagle 스캔 (Main 디스패치 감지)
+# 키 입력 후 자동 eagle 스캔 (Boss 디스패치 감지)
 cmux set-hook after-send-keys \
   "bash ~/.claude/skills/cmux-orchestrator/scripts/eagle_watcher.sh --once"
 
@@ -42,7 +42,7 @@ cmux set-hook --unset after-send-keys
 
 | 이벤트 | 트리거 | Watcher 활용 |
 |--------|--------|-------------|
-| `after-send-keys` | 키 입력 후 | Main 디스패치 후 즉시 eagle 스캔 |
+| `after-send-keys` | 키 입력 후 | Boss 디스패치 후 즉시 eagle 스캔 |
 | `after-resize-pane` | pane 크기 변경 | 레이아웃 변화 감지 |
 | `after-split-window` | 창 분할 | 새 surface 감지 |
 | `pane-died` | pane 종료 | Worker 크래시 감지 |
@@ -114,7 +114,7 @@ rm -f /tmp/cmux-output-s*.log /tmp/cmux-done-s*.flag
 # "DONE:" 텍스트를 포함하는 모든 surface 찾기
 variable_done_surfaces=$(cmux find-window --content "DONE:" --workspace "$variable_workspace" 2>/dev/null)
 
-# 결과: DONE 완료된 surface 목록 → Main에 알림
+# 결과: DONE 완료된 surface 목록 → Boss에 알림
 if [ -n "$variable_done_surfaces" ]; then
     cmux notify --title "WATCHER" --body "DONE surfaces found: $variable_done_surfaces" --workspace "$variable_workspace"
 fi
@@ -141,10 +141,10 @@ for surface, info in data.items():
 ## 6. cmux wait-for : 동기화 시그널
 
 ```bash
-# Watcher가 시그널 대기 (Main이 작업 배정 완료 시 발신)
+# Watcher가 시그널 대기 (Boss가 작업 배정 완료 시 발신)
 cmux wait-for --signal "dispatch-complete" --timeout 300 --workspace "$variable_workspace"
 
-# Main이 배정 완료 후 시그널 발신
+# Boss가 배정 완료 후 시그널 발신
 cmux wait-for -S "dispatch-complete" --workspace "$variable_workspace"
 ```
 
@@ -161,7 +161,7 @@ cmux wait-for -S "dispatch-complete" --workspace "$variable_workspace"
   2. eagle_watcher.sh --once → 전체 상태 분류
   3. IDLE/UNKNOWN → Vision Diff (30초 비교)
   4. STALLED → cmux surface-health + 정밀 조사
-  5. 알림 생성 → Main SendMessage
+  5. 알림 생성 → Boss SendMessage
 
 이벤트 발생 시 (폴링과 독립):
   - set-hook 트리거 → 즉시 eagle 스캔

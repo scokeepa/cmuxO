@@ -2,18 +2,18 @@
 # role-register.sh — cmux 역할 등록/조회 시스템
 #
 # Usage:
-#   bash role-register.sh register <role>   # main|watcher|peer 등록
+#   bash role-register.sh register <role>   # boss|watcher|peer 등록
 #   bash role-register.sh whoami            # 내 역할 확인
 #   bash role-register.sh whois <role>      # 특정 역할의 surface 조회
 #   bash role-register.sh status            # 전체 역할 상태
-#   bash role-register.sh workers           # worker surface 목록 (main/watcher/peer 제외)
+#   bash role-register.sh workers           # worker surface 목록 (boss/watcher/peer 제외)
 #   bash role-register.sh heartbeat <role>  # 하트비트 갱신
-#   bash role-register.sh check-main        # Main 생존 확인 (watcher용)
-#   bash role-register.sh discover-peers    # 활성 동료(main/watcher/peer) 목록 조회
+#   bash role-register.sh check-boss        # Boss 생존 확인 (watcher용)
+#   bash role-register.sh discover-peers    # 활성 동료(boss/watcher/peer) 목록 조회
 #   bash role-register.sh peer-status       # 동료 상태 + 하트비트 확인
 #
 # 역할 레지스트리: /tmp/cmux-roles.json
-# 동료 역할: main, watcher, peer (작업 배정 대상에서 제외)
+# 동료 역할: boss, watcher, peer (작업 배정 대상에서 제외)
 
 set -u
 
@@ -45,7 +45,7 @@ print(caller.get('workspace_ref', ''))
 
 # 역할 등록
 function_register() {
-  local variable_role="$1"  # main | watcher
+  local variable_role="$1"  # boss | watcher
   local variable_surface=""
   local variable_workspace=""
   local variable_timestamp=""
@@ -171,7 +171,7 @@ timeout = int(sys.argv[2])
 now = datetime.now(timezone.utc)
 
 print("=== cmux Role Registry ===")
-for role in ["main", "watcher"]:
+for role in ["boss", "watcher"]:
     info = data.get(role)
     if not info:
         print(f"  {role:8s}: NOT_REGISTERED")
@@ -200,7 +200,7 @@ if workers:
 PY
 }
 
-# Worker 목록 (main/watcher 제외)
+# Worker 목록 (boss/watcher 제외)
 function_workers() {
   if [ ! -f "$ROLES_FILE" ]; then
     echo "[]"
@@ -220,7 +220,7 @@ eagle_file = Path(sys.argv[2])
 data = json.loads(roles_file.read_text()) if roles_file.exists() else {}
 excluded = set()
 for role_name, info in data.items():
-    if role_name in ("main", "watcher") or role_name.startswith("peer"):
+    if role_name in ("boss", "watcher") or role_name.startswith("peer"):
         surface = info.get("surface", "") if isinstance(info, dict) else ""
         if surface:
             num = surface.replace("surface:", "")
@@ -264,8 +264,8 @@ else:
 PY
 }
 
-# Main 생존 확인 (watcher용)
-function_check_main() {
+# Boss 생존 확인 (watcher용)
+function_check_boss() {
   if [ ! -f "$ROLES_FILE" ]; then
     echo "NO_ROLES_FILE"
     return 1
@@ -282,29 +282,29 @@ with open(sys.argv[1]) as f:
 timeout = int(sys.argv[2])
 now = datetime.now(timezone.utc)
 
-main = data.get("main")
-if not main:
-    print("MAIN_NOT_REGISTERED")
+boss = data.get("boss")
+if not boss:
+    print("BOSS_NOT_REGISTERED")
     sys.exit(1)
 
-surface = main.get("surface", "?")
-hb = main.get("last_heartbeat", "")
+surface = boss.get("surface", "?")
+hb = boss.get("last_heartbeat", "")
 
 if not hb:
-    print(f"MAIN_NO_HEARTBEAT|{surface}")
+    print(f"BOSS_NO_HEARTBEAT|{surface}")
     sys.exit(1)
 
 try:
     hb_dt = datetime.strptime(hb, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     age = int((now - hb_dt).total_seconds())
     if age > timeout:
-        print(f"MAIN_DEAD|{surface}|{age}s")
+        print(f"BOSS_DEAD|{surface}|{age}s")
         sys.exit(2)
     else:
-        print(f"MAIN_ALIVE|{surface}|{age}s")
+        print(f"BOSS_ALIVE|{surface}|{age}s")
         sys.exit(0)
 except ValueError:
-    print(f"MAIN_UNKNOWN|{surface}")
+    print(f"BOSS_UNKNOWN|{surface}")
     sys.exit(1)
 PY
 }
@@ -344,7 +344,7 @@ for role, info in data.items():
         except ValueError:
             alive = "UNKNOWN"
 
-    if role in ("main", "watcher") or role.startswith("peer"):
+    if role in ("boss", "watcher") or role.startswith("peer"):
         peers.append(f"{role}={surface}|{workspace}|{alive}")
 
 if peers:
@@ -380,7 +380,7 @@ for role, info in sorted(data.items()):
     if not isinstance(info, dict):
         continue
 
-    is_peer = role in ("main", "watcher") or role.startswith("peer")
+    is_peer = role in ("boss", "watcher") or role.startswith("peer")
     surface = info.get("surface", "?")
     workspace = info.get("workspace", "?")
     hb = info.get("last_heartbeat", "")
@@ -410,13 +410,13 @@ PY
 # 메인 라우터
 case "${1:-status}" in
   register)
-    function_register "${2:?역할을 지정하세요 (main|watcher)}"
+    function_register "${2:?역할을 지정하세요 (boss|watcher)}"
     ;;
   whoami)
     function_whoami
     ;;
   whois)
-    function_whois "${2:?역할을 지정하세요 (main|watcher)}"
+    function_whois "${2:?역할을 지정하세요 (boss|watcher)}"
     ;;
   status)
     function_status
@@ -425,10 +425,10 @@ case "${1:-status}" in
     function_workers
     ;;
   heartbeat)
-    function_heartbeat "${2:?역할을 지정하세요 (main|watcher)}"
+    function_heartbeat "${2:?역할을 지정하세요 (boss|watcher)}"
     ;;
-  check-main)
-    function_check_main
+  check-boss)
+    function_check_boss
     ;;
   discover-peers)
     function_discover_peers
@@ -437,6 +437,6 @@ case "${1:-status}" in
     function_peer_status
     ;;
   *)
-    echo "Usage: role-register.sh {register|whoami|whois|status|workers|heartbeat|check-main|discover-peers|peer-status} [role]"
+    echo "Usage: role-register.sh {register|whoami|whois|status|workers|heartbeat|check-boss|discover-peers|peer-status} [role]"
     ;;
 esac

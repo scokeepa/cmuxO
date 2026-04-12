@@ -15,7 +15,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
-from cmux_utils import write_json_atomic, is_main_surface
+from cmux_utils import write_json_atomic, is_boss_surface
 
 STATE_FILE = "/tmp/cmux-orchestration-state.json"
 
@@ -40,8 +40,8 @@ def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
         print(json.dumps({"decision": "approve"}))
         return
-    # Main surface에서만 stall 방지 강제. 다른 세션은 자유.
-    if not is_main_surface():
+    # Boss surface에서만 stall 방지 강제. 다른 세션은 자유.
+    if not is_boss_surface():
         print(json.dumps({"decision": "approve"}))
         return
     try:

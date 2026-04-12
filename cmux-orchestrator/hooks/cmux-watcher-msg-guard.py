@@ -95,7 +95,7 @@ def main():
         if re.search(pat, command):
             print(json.dumps({
                 "decision": "block",
-                "reason": f"[WATCHER-MSG] ⛔ 와쳐에 보고성 메시지 금지. 와쳐는 CCTV — 감시 지시만 전달하세요. 올바른 형식: '[MAIN→WATCHER] 모니터링 모드: 4중 방어체계. 대상: s:N,... DONE 감지 시 보고. IDLE 3분+ 재촉. ERROR 즉시 보고.'"
+                "reason": f"[WATCHER-MSG] ⛔ 와쳐에 보고성 메시지 금지. 와쳐는 CCTV — 감시 지시만 전달하세요. 올바른 형식: '[BOSS→WATCHER] 모니터링 모드: 4중 방어체계. 대상: s:N,... DONE 감지 시 보고. IDLE 3분+ 재촉. ERROR 즉시 보고.'"
             }))
             return
 

@@ -11,7 +11,7 @@
 | 이중 강제 | SKILL.md 규칙 + PreToolUse hook | 비인가 config 변경 |
 | ConfigChange 차단 | `exit 2`로 수정 차단 | GATE hook 삭제 |
 | LOCK 3-조건 | LOCK + phase=applying + evidence | 위조된 진화 시도 |
-| CT guard | shlex 토큰 분석, `close-workspace`만 대상 | Main/Watcher 종료 |
+| CT guard | shlex 토큰 분석, `close-workspace`만 대상 | Boss/Watcher 종료 |
 | 역할 필터링 | `cmux identify` + roles.json | 세션 간 간섭 |
 | 모드 게이트 | `/cmux-start` 전 31 hooks 비활성 | 비-오케스트레이션 간섭 |
 

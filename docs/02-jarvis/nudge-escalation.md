@@ -28,7 +28,7 @@ badclaude의 Electron overlay/whip 상호작용은 직접 이식하지 않는다
 
 Watcher는 `STALLED`, `IDLE`, `instruction_drift`, `no_done_report`, `rate_limited` 근거를 생성할 수 있지만, nudge를 직접 실행하지 않는다.
 
-> **구현 현황**: issuer 검증은 `ALLOWED_ISSUERS` set 기반 문자열 매칭 + `/tmp/cmux-roles.json` 기반 workspace 교차 검증 수행 (`jarvis_nudge.py:_validate_issuer_authority`). team_lead의 cross-workspace nudge를 차단한다. 런타임 roles 파일 없으면 ALLOWED_ISSUERS 검증만 적용.
+> **구현 현황**: issuer 검증은 `ALLOWED_ISSUERS` set 기반 문자열 매칭 + `/tmp/cmux-roles.json` 기반 권한 매트릭스 검증 수행 (`jarvis_nudge.py:_validate_issuer_authority`). runtime role SSOT는 `roles["boss"]`이며 `roles["main"]`은 alias로 허용하지 않는다. 런타임 roles 파일이 있으면 미등록 issuer/target은 fail-closed, 파일이 없으면 ALLOWED_ISSUERS 검증만 적용한다.
 
 ## 트리거 조건
 
@@ -48,7 +48,7 @@ Watcher는 `STALLED`, `IDLE`, `instruction_drift`, `no_done_report`, `rate_limit
 | L2 | 15분 | 2회 |
 | L3 | 30분 | 1회 |
 
-cooldown 중 반복 요청은 `nudge_rate_limited` 이벤트로 기록되고 실행되지 않는다.
+cooldown 중 반복 요청은 `rate_limited` 이벤트로 기록되고 실행되지 않는다.
 
 ## Audit Event Schema
 
@@ -63,7 +63,7 @@ cooldown 중 반복 요청은 `nudge_rate_limited` 이벤트로 기록되고 실
   "evidence_span": "최근 N분간 관찰 요약",
   "level": "L1|L2|L3",
   "cooldown_until": "ISO-8601",
-  "outcome": "pending|responded|ignored|escalated"
+  "outcome": "sent|failed|rate_limited"
 }
 ```
 

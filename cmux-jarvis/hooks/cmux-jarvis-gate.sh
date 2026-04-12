@@ -7,7 +7,7 @@
 #   3. Worker surface에서 evolutions/ 외부 파일 수정
 #
 # 차단하지 않는 것:
-#   - 사용자/Main/Watcher/팀장/팀원의 모든 작업 → 무조건 allow
+#   - 사용자/Boss/Watcher/팀장/팀원의 모든 작업 → 무조건 allow
 #   - JARVIS의 일반 파일 작업 (knowledge, 문서 등) → allow
 #   - rm 같은 파괴적 명령 → cmux-orchestrator의 기존 guard가 담당
 
@@ -41,12 +41,12 @@ IS_JARVIS=false
 
 IS_WORKER=false
 if ls /tmp/cmux-jarvis-worker-* >/dev/null 2>&1; then
-  MAIN_SID=$(jq -r '.main.surface // ""' "$ROLES_FILE" 2>/dev/null)
+  BOSS_SID=$(jq -r '.boss.surface // ""' "$ROLES_FILE" 2>/dev/null)
   WATCHER_SID=$(jq -r '.watcher.surface // ""' "$ROLES_FILE" 2>/dev/null)
-  [ -n "$MY_SID" ] && [ "$MY_SID" != "$JARVIS_SID" ] && [ "$MY_SID" != "$MAIN_SID" ] && [ "$MY_SID" != "$WATCHER_SID" ] && IS_WORKER=true
+  [ -n "$MY_SID" ] && [ "$MY_SID" != "$JARVIS_SID" ] && [ "$MY_SID" != "$BOSS_SID" ] && [ "$MY_SID" != "$WATCHER_SID" ] && IS_WORKER=true
 fi
 
-# JARVIS도 Worker도 아님 → 모든 것 허용 (사용자/Main/Watcher/팀장/팀원)
+# JARVIS도 Worker도 아님 → 모든 것 허용 (사용자/Boss/Watcher/팀장/팀원)
 [ "$IS_JARVIS" = "false" ] && [ "$IS_WORKER" = "false" ] && { echo "$ALLOW"; exit 0; }
 
 # --- 여기부터 JARVIS 또는 Worker surface에서만 실행 ---

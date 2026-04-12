@@ -20,7 +20,7 @@
 
 | 규칙 | 상세 |
 |------|------|
-| **서브에이전트 총합 2개 이하** | Main 포함 총 API 동시 3개 (계정 통합 제한) |
+| **서브에이전트 총합 2개 이하** | Boss 포함 총 API 동시 3개 (계정 통합 제한) |
 | **Haiku도 같은 풀** | Haiku가 별도 쿼터가 아님! 모든 모델 합산 |
 | **cmux send는 무료** | 외부 AI(Codex/Gemini/GLM) 전송은 API 부하 0 |
 | **cmux surface의 다른 Claude도 계산** | surface:1,2가 Claude면 그것도 Opus API 사용 중! |
@@ -67,7 +67,7 @@ def retry_with_backoff(func, max_retries=5):
 CIRCUIT = {
     "state": "CLOSED",      # CLOSED / OPEN / HALF_OPEN
     "failures": 0,
-    "max_concurrent": 2,    # Main 제외
+    "max_concurrent": 2,    # Boss 제외
     "cooldown_until": 0,
     "half_open_test_sent": False,
 }
@@ -128,11 +128,11 @@ def on_success():
 
 | 상황 | 총 동시 API | 529 위험 |
 |------|-----------|---------|
-| Main(Opus) 단독 | 1 | 없음 |
-| Main + Haiku 1 | 2 | 낮음 |
-| Main + Haiku 2 | 3 | **중간** |
-| Main + Haiku 2 + cmux Claude 2 | **5** | **높음** |
-| Main + Sonnet 1 + Haiku 1 | 3 | **중간** |
+| Boss(Opus) 단독 | 1 | 없음 |
+| Boss + Haiku 1 | 2 | 낮음 |
+| Boss + Haiku 2 | 3 | **중간** |
+| Boss + Haiku 2 + cmux Claude 2 | **5** | **높음** |
+| Boss + Sonnet 1 + Haiku 1 | 3 | **중간** |
 
 ## 프로덕션 재시도 설정 (OpenClaw #24321 기반)
 
@@ -161,5 +161,5 @@ RETRY_CONFIG = {
 **핵심 교훈:**
 1. cmux send(외부 AI)는 0 API — 이것이 가장 안전한 작업 위임 방법
 2. **Haiku도 Opus와 같은 계정 풀 공유** — 별도 쿼터 아님
-3. 서브에이전트 총합 2개 이하 (Main 포함 3개) — 이것이 안전 한계
+3. 서브에이전트 총합 2개 이하 (Boss 포함 3개) — 이것이 안전 한계
 4. **Claude Code 자동 재시도 신뢰 금지** — Issue #661 미해결, 수동 구현 필수

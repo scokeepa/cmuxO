@@ -187,7 +187,7 @@ def code_edit_warning(file_path):
 
     target = idle[0]
     return (
-        f"[GATE] Main 코드 수정 감지: {os.path.basename(file_path)}. "
+        f"[GATE] Boss 코드 수정 감지: {os.path.basename(file_path)}. "
         f"{format_surface(target)} 에 구현 위임 권장. "
         f'예: `{example_send(target, f"TASK: {os.path.basename(file_path)} 구현/수정해줘")}`'
     )

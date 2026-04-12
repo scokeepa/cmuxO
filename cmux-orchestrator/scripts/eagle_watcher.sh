@@ -275,15 +275,15 @@ function_detect_ai_from_screen() {
 }
 
 function_detect_role_from_screen() {
-  # Detect the surface's ROLE: main (orchestrator), watcher (sentinel), or worker.
+  # Detect the surface's ROLE: boss (orchestrator), watcher (sentinel), or worker.
   # Checks screen content for distinctive markers.
   local variable_screen="$1"
   local variable_is_caller="$2"  # "true" if this surface is the cmux identify caller
   local variable_role=""
 
-  # The caller surface (where eagle is running from) is always "main"
+  # The caller surface (where eagle is running from) is always "boss"
   if [ "$variable_is_caller" = "true" ]; then
-    variable_role="main"
+    variable_role="boss"
   # Watcher markers: ran /cmux-watcher, watcher-scan.py visible, or watcher activation
   elif printf '%s\n' "$variable_screen" | grep -qiE "/cmux-watcher|watcher-scan|WATCHER SCAN|Surface Sentinel"; then
     variable_role="watcher"
@@ -588,7 +588,7 @@ if config_file and os.path.isfile(config_file):
 
 workspace_defs = config.get("workspaces", {})
 surface_defs = config.get("surfaces", {})
-main_surface = str(config.get("main_surface", "1") or "1")
+boss_surface = str(config.get("boss_surface", "1") or "1")
 
 windows = session.get("windows", [])
 tab_manager = windows[0].get("tabManager", {}) if windows else {}
@@ -655,12 +655,12 @@ for workspace_index, workspace_info in enumerate(workspaces, 1):
         remaining_groups.pop(matched_group["key"], None)
 
 if workspaces:
-    main_workspace_index = 1
-    if main_workspace_index not in assignments:
-        main_workspace = workspaces[main_workspace_index - 1]
-        matched_group = choose_group(len(main_workspace.get("panels", [])) - 1)
+    boss_workspace_index = 1
+    if boss_workspace_index not in assignments:
+        boss_workspace = workspaces[boss_workspace_index - 1]
+        matched_group = choose_group(len(boss_workspace.get("panels", [])) - 1)
         if matched_group is not None:
-            assignments[main_workspace_index] = matched_group
+            assignments[boss_workspace_index] = matched_group
             remaining_groups.pop(matched_group["key"], None)
 
 for workspace_index, workspace_info in enumerate(workspaces, 1):
@@ -674,7 +674,7 @@ for workspace_index, workspace_info in enumerate(workspaces, 1):
 used_surface_ids = set()
 synthetic_candidate = 1
 reserved_surface_ids = {str(key) for key in surface_defs.keys()}
-reserved_surface_ids.add(main_surface)
+reserved_surface_ids.add(boss_surface)
 
 
 def allocate_surface_ids(workspace_index, panel_count):
@@ -682,8 +682,8 @@ def allocate_surface_ids(workspace_index, panel_count):
     group = assignments.get(workspace_index)
     proposed = []
 
-    if workspace_index == 1 and main_surface not in used_surface_ids:
-        proposed.append(main_surface)
+    if workspace_index == 1 and boss_surface not in used_surface_ids:
+        proposed.append(boss_surface)
 
     if group is not None:
         for sid in group.get("surfaces", []):
@@ -838,7 +838,7 @@ function_poll_once() {
   local variable_screen_role=""
   local variable_caller_sid=""
 
-  # Get caller surface ID for role detection (main = caller)
+  # Get caller surface ID for role detection (boss = caller)
   variable_caller_sid=$(function_get_caller_surface_id)
 
   variable_tree_file="$(mktemp /tmp/eagle-watcher-tree.XXXXXX)"
@@ -929,7 +929,7 @@ function_poll_once() {
     # Detect AI from live screen content (overrides stale config)
     variable_screen_ai=$(function_detect_ai_from_screen "$variable_screen_output")
 
-    # Detect role (main/watcher/worker)
+    # Detect role (boss/watcher/worker)
     local variable_is_caller="false"
     [ "$variable_sid" = "$variable_caller_sid" ] && variable_is_caller="true"
     variable_screen_role=$(function_detect_role_from_screen "$variable_screen_output" "$variable_is_caller" "$variable_sid")

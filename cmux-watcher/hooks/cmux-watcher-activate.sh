@@ -26,12 +26,12 @@ MY_NUM=$(cmux identify 2>/dev/null | python3 -c "import sys,json;print(json.load
 STDERR_LOG=$(python3 "$DETECT" "$MY_NUM" --as-watcher 2>&1 1>/dev/null)
 
 # 역할 확인
-MAIN_SF=$(python3 -c "import json; print(json.load(open('/tmp/cmux-roles.json')).get('main',{}).get('surface','미등록'))" 2>/dev/null || echo "미등록")
+BOSS_SF=$(python3 -c "import json; print(json.load(open('/tmp/cmux-roles.json')).get('boss',{}).get('surface','미등록'))" 2>/dev/null || echo "미등록")
 WATCHER_SF=$(python3 -c "import json; print(json.load(open('/tmp/cmux-roles.json')).get('watcher',{}).get('surface','미등록'))" 2>/dev/null || echo "미등록")
 SCAN_COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/cmux-surface-scan.json')).get('surfaces',{})))" 2>/dev/null || echo "0")
 
 # context 주입
-CONTEXT="[WATCHER-ACTIVATE] hook 자동 실행 완료. watcher=${WATCHER_SF}, main=${MAIN_SF}, surfaces=${SCAN_COUNT}개. ${STDERR_LOG}. AI는 추가 스캔/등록 불필요. /tmp/cmux-surface-scan.json 결과만 읽고 보고. 질문 금지."
+CONTEXT="[WATCHER-ACTIVATE] hook 자동 실행 완료. watcher=${WATCHER_SF}, boss=${BOSS_SF}, surfaces=${SCAN_COUNT}개. ${STDERR_LOG}. AI는 추가 스캔/등록 불필요. /tmp/cmux-surface-scan.json 결과만 읽고 보고. 질문 금지."
 
 python3 -c "
 import json

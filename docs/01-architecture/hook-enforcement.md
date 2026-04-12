@@ -35,7 +35,7 @@
 |------|------|------|
 | GATE 0 | 수집 완료 전 커밋 금지 | `cmux-completion-verifier.py` |
 | GATE 6 | IDLE surface → Agent 금지 | `cmux-gate6-agent-block.sh` |
-| GATE 7 | IDLE worker → Main 직접 작업 금지 | `cmux-gate7-main-delegate.py` |
+| GATE 7 | IDLE worker → Boss 직접 작업 금지 | `cmux-gate7-main-delegate.py` |
 | CT | Control tower 종료 금지 | `cmux-control-tower-guard.py` |
 | LECEIPTS | 5-섹션 보고서 필수 | `cmux-leceipts-gate.py` |
 | PLAN-QG | 5관점 검증 + 시뮬레이션 | `cmux-plan-quality-gate.py` |

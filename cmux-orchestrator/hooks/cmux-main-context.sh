@@ -35,7 +35,7 @@ if os.path.exists(roles_file):
     except: pass
 
 watcher = roles.get('watcher', {}).get('surface', '미등록')
-main = roles.get('main', {}).get('surface', '미등록')
+boss = roles.get('boss', {}).get('surface', '미등록')
 total = len(surfaces)
 
 lines = []
@@ -75,7 +75,7 @@ if os.path.exists(memory_file):
             mem_section = chr(10).join(ml)
     except: pass
 
-msg = f'[CMUX-MAIN] 와쳐 캐시 주입 (scan: {int(scan_age)}초 전)\\n와쳐: {watcher}\\n메인: {main}\\nsurface: {total}개\\n{summary}{traits_section}{mem_section}'
+msg = f'[CMUX-BOSS] 와쳐 캐시 주입 (scan: {int(scan_age)}초 전)\\n와쳐: {watcher}\\n사장: {boss}\\nsurface: {total}개\\n{summary}{traits_section}{mem_section}'
 
 # Mentor context (L0/L1) 주입 — mempalace ChromaDB 기반
 mentor_section = ''

@@ -51,7 +51,7 @@ EXPORT_FORMAT = "cmux_mentor_export"
 EXPORT_VERSION = 2  # v2: ChromaDB-based
 
 L0_DEFAULT = """cmux 오케스트레이션 시스템의 CEO 사용자.
-Boss(Main), Watcher, JARVIS로 구성된 컨트롤 타워를 운영.
+Boss, Watcher, JARVIS로 구성된 컨트롤 타워를 운영.
 부서별 팀장-팀원 구조로 멀티 AI 작업을 조율."""
 
 AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
@@ -604,7 +604,7 @@ def cmd_migrate():
     return 0
 
 
-# ── Main ────────────────────────────────────────────────────────────
+# ── Boss ────────────────────────────────────────────────────────────
 
 
 def main():

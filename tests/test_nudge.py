@@ -2,9 +2,12 @@
 """tests/test_nudge.py — jarvis_nudge.py ChromaDB 단위 테스트."""
 
 import json
+import io
 import os
 import sys
 import tempfile
+from contextlib import redirect_stdout
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "cmux-jarvis", "scripts"))
@@ -19,6 +22,7 @@ def _mock_cmux_send(target, message):
 def _setup(td):
     nudge.PALACE_PATH = os.path.join(td, "palace")
     nudge.COLLECTION_NAME = "test_signals"
+    nudge.ROLES_PATH = os.path.join(td, "roles.json")
 
 
 def test_l1_send():
@@ -54,6 +58,25 @@ def test_cooldown_enforced():
             rc2 = nudge.cmd_send("surface:7", "team_lead", "STALLED", "still stuck")
             assert rc2 == 2
     print("  test_cooldown_enforced: PASS")
+
+
+def test_cooldown_audit_same_timestamp_not_overwritten():
+    """같은 timestamp 안의 sent/rate_limited audit도 각각 저장한다."""
+    fixed_now = datetime(2026, 4, 12, 0, 0, 0, tzinfo=timezone.utc)
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        with patch.object(nudge, "_cmux_send", _mock_cmux_send):
+            with patch.object(nudge, "utc_now", return_value=fixed_now):
+                rc1 = nudge.cmd_send("surface:7", "team_lead", "STALLED", "stuck")
+                rc2 = nudge.cmd_send("surface:7", "team_lead", "STALLED", "still stuck")
+        assert rc1 == 0
+        assert rc2 == 2
+        col = nudge._get_collection()
+        results = col.get(where={"wing": "cmux_nudge"}, include=["metadatas"])
+        assert len(results["ids"]) == 2
+        outcomes = sorted(meta["outcome"] for meta in results["metadatas"])
+        assert outcomes == ["rate_limited", "sent"]
+    print("  test_cooldown_audit_same_timestamp_not_overwritten: PASS")
 
 
 def test_l2_blocked():
@@ -193,14 +216,103 @@ def test_no_roles_file_fallback():
     print("  test_no_roles_file_fallback: PASS")
 
 
+def test_main_role_is_not_boss_alias():
+    """roles['main']만 있으면 boss issuer로 인정하지 않는다."""
+    roles = {
+        "main": {"surface": "surface:1", "workspace": "control"},
+        "team_lead": {"surface": "surface:7", "workspace": "ws1"},
+    }
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        with patch.object(nudge, "_load_runtime_json", return_value=roles):
+            with patch.object(nudge, "_cmux_send", _mock_cmux_send):
+                rc = nudge.cmd_send("surface:7", "boss", "STALLED", "stuck")
+        assert rc == 4
+    print("  test_main_role_is_not_boss_alias: PASS")
+
+
+def test_boss_can_nudge_team_lead():
+    """boss는 team_lead만 nudge할 수 있다."""
+    roles = {
+        "boss": {"surface": "surface:1", "workspace": "control"},
+        "team_lead": {"surface": "surface:7", "workspace": "ws1"},
+    }
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        with patch.object(nudge, "_load_runtime_json", return_value=roles):
+            with patch.object(nudge, "_cmux_send", _mock_cmux_send):
+                rc = nudge.cmd_send("surface:7", "boss", "STALLED", "stuck")
+        assert rc == 0
+    print("  test_boss_can_nudge_team_lead: PASS")
+
+
+def test_roles_present_missing_target_blocked():
+    """roles 파일이 있으면 미등록 target은 fail-closed."""
+    roles = {
+        "boss": {"surface": "surface:1", "workspace": "control"},
+    }
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        with patch.object(nudge, "_load_runtime_json", return_value=roles):
+            with patch.object(nudge, "_cmux_send", _mock_cmux_send):
+                rc = nudge.cmd_send("surface:999", "boss", "STALLED", "stuck")
+        assert rc == 4
+    print("  test_roles_present_missing_target_blocked: PASS")
+
+
+def test_invalid_reason_code_blocked():
+    """문서 enum 밖 reason_code는 거부."""
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        with patch.object(nudge, "_cmux_send", _mock_cmux_send):
+            rc = nudge.cmd_send("surface:7", "team_lead", "UNKNOWN", "stuck")
+        assert rc == 1
+    print("  test_invalid_reason_code_blocked: PASS")
+
+
+def test_evidence_redacted_for_send_and_audit():
+    """전송 message, stdout audit, ChromaDB document 모두 redaction 적용."""
+    captured = {}
+
+    def _mock_capture(target, message):
+        captured["message"] = message
+        return True
+
+    with tempfile.TemporaryDirectory() as td:
+        _setup(td)
+        with patch.object(nudge, "_cmux_send", _mock_capture):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc = nudge.cmd_send("surface:7", "team_lead", "STALLED", "password=secret sk-abcdefghijklmnopqrstuv")
+        assert rc == 0
+        assert "secret" not in captured["message"]
+        assert "sk-abcdefghijklmnopqrstuv" not in captured["message"]
+        assert "[REDACTED_PASSWORD]" in captured["message"]
+        assert "[REDACTED_API_KEY]" in captured["message"]
+        assert "secret" not in out.getvalue()
+        assert "sk-abcdefghijklmnopqrstuv" not in out.getvalue()
+
+        col = nudge._get_collection()
+        results = col.get(where={"wing": "cmux_nudge"}, include=["documents", "metadatas"])
+        assert "secret" not in results["documents"][0]
+        assert "sk-abcdefghijklmnopqrstuv" not in results["documents"][0]
+    print("  test_evidence_redacted_for_send_and_audit: PASS")
+
+
 def main():
     test_l1_send()
     test_watcher_blocked()
     test_cooldown_enforced()
+    test_cooldown_audit_same_timestamp_not_overwritten()
     test_l2_blocked()
     test_invalid_issuer()
     test_different_targets_no_cooldown()
     test_check_cooldown()
+    test_main_role_is_not_boss_alias()
+    test_boss_can_nudge_team_lead()
+    test_roles_present_missing_target_blocked()
+    test_invalid_reason_code_blocked()
+    test_evidence_redacted_for_send_and_audit()
     print("\nAll nudge (ChromaDB) tests passed.")
 
 

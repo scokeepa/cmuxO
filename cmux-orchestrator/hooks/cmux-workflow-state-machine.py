@@ -26,7 +26,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
-from cmux_utils import write_json_atomic, is_main_surface
+from cmux_utils import write_json_atomic, is_boss_surface
 from leceipts_validator import is_git_commit
 
 STATE_FILE = "/tmp/cmux-workflow-state.json"
@@ -108,8 +108,8 @@ def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
         print(json.dumps({"decision": "approve"}))
         return
-    # Main surface에서만 워크플로우 규율 적용. 다른 세션은 자유.
-    if not is_main_surface():
+    # Boss surface에서만 워크플로우 규율 적용. 다른 세션은 자유.
+    if not is_boss_surface():
         print(json.dumps({"decision": "approve"}))
         return
     try:

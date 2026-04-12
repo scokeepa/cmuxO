@@ -144,11 +144,11 @@ variable_exclude_patterns = [
 ]
 ```
 
-## 결과 알림 (Main에 전달)
+## 결과 알림 (Boss에 전달)
 
 ```python
 if result["status"] == "STALLED":
-    # SendMessage to Main
+    # SendMessage to Boss
     message = f"[VISION DIFF] {variable_surface} STALLED: 30초간 화면 변화 없음. 정밀 조사 필요.\n"
     message += f"OCR A: {variable_text_a[:100]}...\n"
     message += f"OCR B: {variable_text_b[:100]}...\n"

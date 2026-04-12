@@ -16,7 +16,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
-from cmux_utils import write_json_atomic, is_main_surface
+from cmux_utils import write_json_atomic, is_boss_surface
 
 PENDING_FILE = "/tmp/cmux-dispatch-pending.json"
 SURFACE_MAP_FILE = "/tmp/cmux-surface-map.json"
@@ -46,8 +46,8 @@ def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
         print(json.dumps({"decision": "approve"}))
         return
-    # Main surface에서만 와쳐 알림 강제. 다른 세션은 자유.
-    if not is_main_surface():
+    # Boss surface에서만 와쳐 알림 강제. 다른 세션은 자유.
+    if not is_boss_surface():
         print(json.dumps({"decision": "approve"}))
         return
     try:
@@ -113,7 +113,7 @@ def main():
     if pending["surfaces"] and pending["timestamp"] > 0:
         elapsed = time.time() - pending["timestamp"]
         # Deadlock 방지: 5분(300초) 이상 pending이면 자동 해소
-        # (Watcher crash 등으로 Main이 영구 차단되는 것 방지)
+        # (Watcher crash 등으로 Boss가 영구 차단되는 것 방지)
         if elapsed > 300:
             pending["surfaces"] = []
             pending["timestamp"] = 0

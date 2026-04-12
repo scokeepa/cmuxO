@@ -2,7 +2,7 @@
 """watcher-scan.py — Unified cmux surface health scanner.
 
 Combines eagle_watcher, vision-monitor, and stall-detector into a single
-actionable scan that returns prioritized alerts for the main orchestrator.
+actionable scan that returns prioritized alerts for the boss orchestrator.
 
 Usage:
     python3 watcher-scan.py                  # Full scan (eagle + vision + stall)
@@ -230,11 +230,11 @@ def get_system_resources(active_count: int) -> dict:
         }
 
 
-def build_departments(surfaces: dict, main_surface: str, watcher_surface: str) -> dict:
+def build_departments(surfaces: dict, boss_surface: str, watcher_surface: str) -> dict:
     """surface_roles에서 workspace별 부서 구조 생성."""
     departments = {}
     for sid, info in surfaces.items():
-        if sid in (main_surface, watcher_surface):
+        if sid in (boss_surface, watcher_surface):
             continue
         ws = info.get("workspace", "")
         if not ws:
@@ -304,7 +304,7 @@ def write_surface_map(eagle_data: dict) -> None:
     profiles = load_ai_profiles()
 
     watcher_surface = roles.get("watcher", {}).get("surface", "").replace("surface:", "")
-    main_surface = roles.get("main", {}).get("surface", "").replace("surface:", "")
+    boss_surface = roles.get("boss", {}).get("surface", "").replace("surface:", "")
 
     no_init_surfaces = []
     sandbox_surfaces = []
@@ -330,18 +330,18 @@ def write_surface_map(eagle_data: dict) -> None:
         if "two_phase_send" in traits:
             two_phase_surfaces.append(sid)
 
-        if sid != watcher_surface and sid != main_surface:
+        if sid != watcher_surface and sid != boss_surface:
             worker_surfaces.append(sid)
 
     active_count = len(surfaces)
-    departments = build_departments(surfaces, main_surface, watcher_surface)
+    departments = build_departments(surfaces, boss_surface, watcher_surface)
     resources = get_system_resources(active_count)
     tools = get_available_tools()
     queue = load_queue()
 
     surface_map = {
         "watcher_surface": watcher_surface,
-        "main_surface": main_surface,
+        "boss_surface": boss_surface,
         "departments": departments,
         "queue": queue,
         "system_resources": resources,
@@ -367,11 +367,11 @@ def write_surface_map(eagle_data: dict) -> None:
         pass
 
     # 컨트롤 타워 위치 보정: index 0으로 고정
-    main_ws = roles.get("main", {}).get("workspace", "")
-    if main_ws:
+    boss_ws = roles.get("boss", {}).get("workspace", "")
+    if boss_ws:
         try:
             subprocess.run(
-                ["cmux", "reorder-workspace", "--workspace", main_ws, "--index", "0"],
+                ["cmux", "reorder-workspace", "--workspace", boss_ws, "--index", "0"],
                 capture_output=True, timeout=5
             )
         except Exception:
@@ -601,16 +601,16 @@ def run_ane_ocr_verify(surface_ids: list[str]) -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
-# Main Health Check
+# Boss Health Check
 # ---------------------------------------------------------------------------
 
 ROLES_FILE = Path("/tmp/cmux-roles.json")
 ROLE_SCRIPT = Path.home() / ".claude" / "plugins" / "local" / "all-in-one" / "skills" / "cmux-orchestrator" / "scripts" / "role-register.sh"
-MAIN_DEAD_THRESHOLD = 120  # 2min no heartbeat = dead
+BOSS_DEAD_THRESHOLD = 120  # 2min no heartbeat = dead
 
 
-def check_main_health(timestamp: str, history: dict):
-    """Check if Main orchestrator is alive. Return alert if dead."""
+def check_boss_health(timestamp: str, history: dict):
+    """Check if Boss orchestrator is alive. Return alert if dead."""
     if not ROLES_FILE.exists():
         return None
 
@@ -619,11 +619,11 @@ def check_main_health(timestamp: str, history: dict):
     except (json.JSONDecodeError, OSError):
         return None
 
-    main_info = roles.get("main")
-    if not main_info:
+    boss_info = roles.get("boss")
+    if not boss_info:
         return None
 
-    hb_str = main_info.get("last_heartbeat", "")
+    hb_str = boss_info.get("last_heartbeat", "")
     if not hb_str:
         return None
 
@@ -635,16 +635,16 @@ def check_main_health(timestamp: str, history: dict):
     except (ValueError, TypeError):
         return None
 
-    if age <= MAIN_DEAD_THRESHOLD:
-        return None  # Main is alive
+    if age <= BOSS_DEAD_THRESHOLD:
+        return None  # Boss is alive
 
-    # Main is dead — generate CRITICAL alert
-    alert_key = "main_dead"
-    if is_cooldown_active(alert_key, history, MAIN_DEAD_THRESHOLD):
+    # Boss is dead — generate CRITICAL alert
+    alert_key = "boss_dead"
+    if is_cooldown_active(alert_key, history, BOSS_DEAD_THRESHOLD):
         return None
 
-    surface = main_info.get("surface", "?")
-    workspace = main_info.get("workspace", "?")
+    surface = boss_info.get("surface", "?")
+    workspace = boss_info.get("workspace", "?")
 
     append_alert_history(alert_key, timestamp)
     return {
@@ -652,14 +652,14 @@ def check_main_health(timestamp: str, history: dict):
         "surface_id": surface.replace("surface:", ""),
         "surface_ref": surface,
         "workspace": workspace,
-        "ai": "Main (Opus)",
-        "status": "MAIN_DEAD",
-        "message": f"MAIN ({surface}) DEAD — {age}s since last heartbeat!",
-        "action": "RECOVER_MAIN",
+        "ai": "Boss (Opus)",
+        "status": "BOSS_DEAD",
+        "message": f"BOSS ({surface}) DEAD — {age}s since last heartbeat!",
+        "action": "RECOVER_BOSS",
         "action_detail": (
             f"cmux send --workspace {workspace} --surface {surface} '/compact' && "
             f"sleep 5 && cmux send --workspace {workspace} --surface {surface} "
-            f"'이전 작업을 이어서 진행해. role-register.sh heartbeat main 실행 후 계속.' && "
+            f"'이전 작업을 이어서 진행해. role-register.sh heartbeat boss 실행 후 계속.' && "
             f"cmux send-key --workspace {workspace} --surface {surface} enter"
         ),
         "timestamp": timestamp,
@@ -796,7 +796,7 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
                 # Debounce: skip if within grace period after DONE report
                 done_time = _done_reported.get(sid, 0)
                 if now_ts - done_time < IDLE_GRACE_PERIOD:
-                    pass  # Grace period — Main is likely reassigning
+                    pass  # Grace period — Boss is likely reassigning
                 # Debounce: skip if reminded too recently
                 elif sid in _idle_debounce and now_ts - _idle_debounce[sid] < IDLE_REMIND_INTERVAL:
                     pass  # Already reminded recently
@@ -817,7 +817,7 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
                     _idle_debounce[sid] = now_ts
                     append_alert_history(alert_key, timestamp)
 
-        # --- DONE alerts (HIGH — 즉시 Main에 보고하여 다음 작업 배정) ---
+        # --- DONE alerts (HIGH — 즉시 Boss에 보고하여 다음 작업 배정) ---
         elif status == "DONE":
             alert_key = f"done:{sid}"
             # Record DONE time for IDLE debounce grace period
@@ -837,10 +837,10 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
                 })
                 append_alert_history(alert_key, timestamp)
 
-    # --- Main health check (CRITICAL — watcher's unique duty) ---
-    main_alert = check_main_health(timestamp, history)
-    if main_alert:
-        alerts.append(main_alert)
+    # --- Boss health check (CRITICAL — watcher's unique duty) ---
+    boss_alert = check_boss_health(timestamp, history)
+    if boss_alert:
+        alerts.append(boss_alert)
 
     # Sort by priority
     alerts.sort(key=lambda a: PRIORITY_ORDER.get(a.get("priority", "INFO"), 99))
@@ -873,7 +873,7 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
             active_sids = set(surfaces.keys())
             counters_changed = False
 
-            for role_name in ("main", "watcher"):
+            for role_name in ("boss", "watcher"):
                 role_surface = roles.get(role_name, {}).get("surface", "").replace("surface:", "")
                 if not role_surface:
                     continue
@@ -977,7 +977,7 @@ def generate_report(eagle_data: dict, alerts: list[dict]) -> dict:
 
 
 def format_text_report(report: dict) -> str:
-    """Format report as human-readable text for the main agent."""
+    """Format report as human-readable text for the boss agent."""
     lines: list[str] = []
     summary = report.get("summary", {})
     alerts = report.get("alerts", [])
@@ -1018,7 +1018,7 @@ def format_text_report(report: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Entry point
 # ---------------------------------------------------------------------------
 
 def main() -> None:
@@ -1133,7 +1133,7 @@ def main() -> None:
 
         # 관리 세션 정보 추가
         managed_sessions = {}
-        excluded_roles = {"main", "watcher", "jarvis"}
+        excluded_roles = {"boss", "watcher", "jarvis"}
         if ROLES_FILE.exists():
             try:
                 roles = json.loads(ROLES_FILE.read_text())
@@ -1177,10 +1177,10 @@ def main() -> None:
 
         return report
 
-    notify_main = "--notify-main" in args
+    notify_boss = "--notify-boss" in args
 
-    def notify_main_surface(report: dict) -> None:
-        """Send alert summary to Main surface via cmux send + enter.
+    def notify_boss_surface(report: dict) -> None:
+        """Send alert summary to Boss surface via cmux send + enter.
 
         항상 호출 — action_needed 여부 무관하게 상태 리포트 전송.
         WATCHER_MUTE_FLAG 존재 시 알림 전송 스킵 (스캔은 계속).
@@ -1191,11 +1191,11 @@ def main() -> None:
             return
         try:
             roles = json.loads(ROLES_FILE.read_text())
-            main_info = roles.get("main")
-            if not main_info:
+            boss_info = roles.get("boss")
+            if not boss_info:
                 return
-            surface = main_info["surface"]
-            workspace = main_info["workspace"]
+            surface = boss_info["surface"]
+            workspace = boss_info["workspace"]
         except (json.JSONDecodeError, KeyError, OSError):
             return
 
@@ -1225,7 +1225,7 @@ def main() -> None:
 
         # 상태 요약 항상 포함
         lines = [
-            f"[WATCHER→MAIN] W:{summary.get('working',0)} I:{summary.get('idle',0)} "
+            f"[WATCHER→BOSS] W:{summary.get('working',0)} I:{summary.get('idle',0)} "
             f"D:{summary.get('done',0)} E:{summary.get('error',0)} ST:{summary.get('stalled',0)}"
         ]
 
@@ -1268,18 +1268,18 @@ def main() -> None:
             run_cmd(["bash", str(ROLE_SCRIPT), "heartbeat", "watcher"], timeout=5)
 
     # 판정 불가 카운터 (3회 UNKNOWN 연속 → STALLED)
-    _main_unknown_counts: dict[str, int] = {}
+    _boss_unknown_counts: dict[str, int] = {}
 
-    def read_main_response() -> str:
-        """알림 전송 후 Main 화면을 읽어 상태 파악."""
+    def read_boss_response() -> str:
+        """알림 전송 후 Boss 화면을 읽어 상태 파악."""
         if not ROLES_FILE.exists():
             return "UNKNOWN"
         try:
             roles = json.loads(ROLES_FILE.read_text())
-            main_info = roles.get("main")
-            if not main_info:
+            boss_info = roles.get("boss")
+            if not boss_info:
                 return "UNKNOWN"
-            sid = main_info["surface"].replace("surface:", "")
+            sid = boss_info["surface"].replace("surface:", "")
         except (json.JSONDecodeError, KeyError, OSError):
             return "UNKNOWN"
 
@@ -1289,48 +1289,48 @@ def main() -> None:
         if rc != 0 or not text:
             return "UNKNOWN"
 
-        # Main 상태 판정 — WORKING 신호 우선
+        # Boss 상태 판정 — WORKING 신호 우선
         working_signals = ["Working", "Choreographing", "thinking", "Compiling",
                            "Running", "Processing", "tokens", "thought for",
                            "Retrying", "attempt",
                            "recent", "cmux", "capture", "read-screen", "scrollback"]
         for sig in working_signals:
             if sig in text:
-                _main_unknown_counts.pop(sid, None)
+                _boss_unknown_counts.pop(sid, None)
                 return "WORKING"
 
         # IDLE 신호 — 프롬프트 문자 (UTF-8 멀티바이트 포함)
         idle_signals = ["\u276f", "\u203a", "❯", "›", "bypass permissions"]
         for sig in idle_signals:
             if sig in text:
-                _main_unknown_counts.pop(sid, None)
+                _boss_unknown_counts.pop(sid, None)
                 return "IDLE"
 
         # 판정 불가 시 UNKNOWN 반환, 3회 연속 UNKNOWN → STALLED
-        if sid not in _main_unknown_counts:
-            _main_unknown_counts[sid] = 0
-        _main_unknown_counts[sid] += 1
-        if _main_unknown_counts[sid] >= 3:
-            del _main_unknown_counts[sid]
+        if sid not in _boss_unknown_counts:
+            _boss_unknown_counts[sid] = 0
+        _boss_unknown_counts[sid] += 1
+        if _boss_unknown_counts[sid] >= 3:
+            del _boss_unknown_counts[sid]
             return "STALLED"
         return "UNKNOWN"
 
-    def adaptive_interval(main_state: str, has_working_workers: bool) -> int:
-        """Main 상태 + worker 상태에 따라 폴링 간격 자동 조절.
+    def adaptive_interval(boss_state: str, has_working_workers: bool) -> int:
+        """Boss 상태 + worker 상태에 따라 폴링 간격 자동 조절.
 
-        - Main WORKING + workers WORKING: 60초 (정상 감시)
-        - Main IDLE + workers WORKING: 30초 (곧 완료될 수 있음)
-        - Main IDLE + workers IDLE: 120초 (모두 대기 — 느린 폴링)
-        - Main WORKING + workers IDLE: 15초 (Main이 배정 중 — 빠른 감시)
+        - Boss WORKING + workers WORKING: 60초 (정상 감시)
+        - Boss IDLE + workers WORKING: 30초 (곧 완료될 수 있음)
+        - Boss IDLE + workers IDLE: 120초 (모두 대기 — 느린 폴링)
+        - Boss WORKING + workers IDLE: 15초 (Boss가 배정 중 — 빠른 감시)
         """
-        if main_state == "WORKING" and has_working_workers:
+        if boss_state == "WORKING" and has_working_workers:
             return 60
-        elif main_state == "IDLE" and has_working_workers:
+        elif boss_state == "IDLE" and has_working_workers:
             return 30
-        elif main_state == "IDLE" and not has_working_workers:
+        elif boss_state == "IDLE" and not has_working_workers:
             return 120  # 모두 대기 — 느린 폴링
-        elif main_state == "WORKING" and not has_working_workers:
-            return 15   # Main 배정 시작 — 빠른 전환
+        elif boss_state == "WORKING" and not has_working_workers:
+            return 15   # Boss 배정 시작 — 빠른 전환
         return continuous_interval
 
     if continuous_mode:
@@ -1342,7 +1342,7 @@ def main() -> None:
                 try:
                     Path("/tmp/cmux-watcher-state.json").write_text(
                         json.dumps({
-                            "main_state": "PAUSED",
+                            "boss_state": "PAUSED",
                             "has_working_workers": False,
                             "interval": 0,
                             "iteration": iteration,
@@ -1368,16 +1368,16 @@ def main() -> None:
             summary = report.get("summary", {})
             has_working = summary.get("working", 0) > 0
 
-            # Main 반응 읽기 (scan 직후 — notify 전에)
-            main_state = read_main_response()
+            # Boss 반응 읽기 (scan 직후 — notify 전에)
+            boss_state = read_boss_response()
 
             # 상태 파일 즉시 기록 (notify 블로킹 무관하게 watchdog이 참조)
             try:
                 Path("/tmp/cmux-watcher-state.json").write_text(
                     json.dumps({
-                        "main_state": main_state,
+                        "boss_state": boss_state,
                         "has_working_workers": has_working,
-                        "interval": adaptive_interval(main_state, has_working),
+                        "interval": adaptive_interval(boss_state, has_working),
                         "iteration": iteration,
                         "timestamp": utc_now(),
                     }, ensure_ascii=False)
@@ -1400,20 +1400,20 @@ def main() -> None:
             color = "#ff0000" if summary.get("error", 0) > 0 else "#00ff00"
             if is_muted:
                 color = "#ffaa00"
-            elif main_state == "IDLE" and not has_working:
+            elif boss_state == "IDLE" and not has_working:
                 color = "#888888"
             run_cmd(["cmux", "set-status", "watcher", status_text,
                      "--icon", "eye", "--color", color], timeout=3)
 
-            # Notify Main — 항상 (블로킹 방지: 별도 스레드)
-            if notify_main:
+            # Notify Boss — 항상 (블로킹 방지: 별도 스레드)
+            if notify_boss:
                 import threading
-                t = threading.Thread(target=notify_main_surface, args=(report,), daemon=True)
+                t = threading.Thread(target=notify_boss_surface, args=(report,), daemon=True)
                 t.start()
                 t.join(timeout=5)  # 최대 5초 대기, 블로킹되면 버림
 
             iteration += 1
-            interval = adaptive_interval(main_state, has_working)
+            interval = adaptive_interval(boss_state, has_working)
             time.sleep(interval)
     else:
         report = do_scan()
@@ -1421,8 +1421,8 @@ def main() -> None:
             print(json.dumps(report, ensure_ascii=False))
         else:
             print(format_text_report(report))
-        if notify_main:
-            notify_main_surface(report)
+        if notify_boss:
+            notify_boss_surface(report)
         do_heartbeat()
 
 

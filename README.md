@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/hooks-31-orange?style=flat-square" alt="31 Hooks">
   <img src="https://img.shields.io/badge/restore-SQL%20extract-ff6b6b?style=flat-square" alt="SQL Extract Restore">
   <img src="https://img.shields.io/badge/files-216-green?style=flat-square" alt="216 Files">
-  <img src="https://img.shields.io/badge/tests-72%20passed-brightgreen?style=flat-square" alt="72 Tests">
+  <img src="https://img.shields.io/badge/tests-78%20passed-brightgreen?style=flat-square" alt="78 Tests">
   <img src="https://img.shields.io/badge/mentor%20scripts-6-blueviolet?style=flat-square" alt="6 Mentor Scripts">
   <img src="https://img.shields.io/badge/arch%20docs-22-informational?style=flat-square" alt="22 Architecture Docs">
   <img src="https://img.shields.io/badge/memory-ChromaDB-ff6b6b?style=flat-square" alt="ChromaDB">
@@ -63,7 +63,7 @@ graph TB
 
     subgraph CT["Control Tower &nbsp;(protected — cannot be closed)"]
         direction LR
-        Main["<b>Boss</b> (Main/COO)<br/>Dispatch + Collect + Commit"]
+        Boss["<b>Boss</b><br/>Dispatch + Collect + Commit"]
         Watcher["<b>Watcher</b><br/>4-layer monitoring<br/>20s scan cycle"]
         Jarvis["<b>JARVIS</b><br/>Self-evolving config<br/>Iron Laws enforced"]
     end
@@ -80,12 +80,12 @@ graph TB
     end
 
     User <-->|"config evolution<br/>approve / reject"| Jarvis
-    User -->|"project task"| Main
-    Main -->|"cmux send<br/>(dispatch)"| TL1 & TL2
+    User -->|"project task"| Boss
+    Boss -->|"cmux send<br/>(dispatch)"| TL1 & TL2
     TL1 -->|"sub-task"| W1 & W2
     TL2 -->|"sub-task"| W3
-    Jarvis -.->|"policy propagate"| Main & Watcher
-    Watcher -->|"status report<br/>(IDLE/ERROR/STALL)"| Main
+    Jarvis -.->|"policy propagate"| Boss & Watcher
+    Watcher -->|"status report<br/>(IDLE/ERROR/STALL)"| Boss
     Watcher -.->|"Eagle + OCR<br/>+ VisionDiff<br/>+ Pipe-pane"| D1 & D2
 
     style CT fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#e0e7ff
@@ -125,7 +125,7 @@ stateDiagram-v2
 ```
 +------------------+     cmux send      +-------------------+
 |                  | -----------------> |                   |
-|   Boss (Main)    |                    |  Worker tmux pane |
+|      Boss        |                    |  Worker tmux pane |
 |                  | <----------------- |                   |
 +--------+---------+   capture-pane     +-------------------+
          |                                      ^
@@ -295,7 +295,7 @@ All hooks are **dormant until `/cmux-start`**. Zero interference in normal usage
 |------|------|------|
 | GATE 0 | No commit before collection complete | `cmux-completion-verifier.py` |
 | GATE 6 | IDLE surface exists -> Agent forbidden | `cmux-gate6-agent-block.sh` |
-| GATE 7 | IDLE worker exists -> Main direct work forbidden | `cmux-gate7-main-delegate.py` |
+| GATE 7 | IDLE worker exists -> Boss direct work forbidden | `cmux-gate7-main-delegate.py` |
 | CT | Control tower close forbidden | `cmux-control-tower-guard.py` |
 | LECEIPTS | 5-section report before commit | `cmux-leceipts-gate.py` |
 | PLAN-QG | 5-point verification + simulation before ExitPlanMode | `cmux-plan-quality-gate.py` |
@@ -342,7 +342,7 @@ Runs on macOS, Linux, and WSL. OS-specific commands are abstracted through `cmux
 | Dual enforcement | SKILL.md rules + PreToolUse hooks | Unauthorized config changes |
 | ConfigChange block | `exit 2` prevents modification | GATE hook deletion |
 | LOCK 3-conditions | LOCK + phase=applying + evidence | Forged evolution attempts |
-| Control tower guard | shlex token analysis for `close-workspace` only | Main/Watcher termination |
+| Control tower guard | shlex token analysis for `close-workspace` only | Boss/Watcher termination |
 | Role filtering | `cmux identify` + roles.json | Cross-session interference |
 | Mode gate | All 31 hooks dormant before `/cmux-start` | Non-orchestration interference |
 | Palace chmod 0o700 | Owner-only directory permissions | Unauthorized palace access |
@@ -457,11 +457,11 @@ With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
   test_palace_memory     ████████████████████████ 13 tests  Palace memory + restore + version detect
   test_redaction         ████████████████  8 tests   Privacy redaction + sanitize
   test_context_injection ██████████        5 tests   Prompt injection logic
-  test_nudge             ████████████████████████ 12 tests  Nudge L1 + cooldown + authority + wing isolation
+  test_nudge             ████████████████████████ 16 tests  Nudge L1 + cooldown + authority + redaction
   test_mentor_report     ████████████      6 tests   Report generation
   test_failure_class.    ██████████████    7 tests   Failure classification
   ─────────────────────────────────────────────────
-  Total                                   72 tests  ALL PASSED
+  Total                                   78 tests  ALL PASSED
 ```
 
 ### Codebase Scale
@@ -473,7 +473,7 @@ With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
 | cmux-jarvis | 35 | ~6K | Evolution + Mentor + ChromaDB Memory |
 | Mentor scripts | 6 | ~1,300 | Signal, Memory, Redactor, Nudge, Report, Classifier |
 | Architecture docs | 22 | ~2,000 | System + JARVIS + operations + dev |
-| Tests | 10 | ~1,100 | 72 unit tests (ChromaDB-based) |
+| Tests | 10 | ~1,200 | 78 unit tests (ChromaDB-based) |
 
 ---
 
@@ -521,7 +521,7 @@ cmux-orchestrator-watcher-pack/           216 files
 |-- install.sh                             One-command installer
 |-- README.md
 |
-|-- cmux-orchestrator/                     Boss (Main) -- orchestration core
+|-- cmux-orchestrator/                     Boss -- orchestration core
 |   |-- SKILL.md                           Orchestration directives
 |   |-- activation-hook.sh                 Auto-registration on skill load
 |   |-- hooks/                (22)         Workflow enforcement hooks
@@ -563,7 +563,7 @@ cmux-orchestrator-watcher-pack/           216 files
 |   |-- 05-research/          (3)          Repo survey, Claude source findings
 |   |-- 99-archive/           (14)         Deprecated docs preserved
 |   +-- CHANGELOG.md                       Full version history
-+-- tests/                    (9)          72 unit tests (ChromaDB-based)
++-- tests/                    (9)          78 unit tests (ChromaDB-based)
 ```
 
 ---
@@ -577,7 +577,7 @@ This project incorporates patterns and techniques from the following open source
 | [milla-jovovich/mempalace](https://github.com/milla-jovovich/mempalace) | MIT | `extract_drawers_from_sqlite()` — raw SQL drawer extraction bypassing ChromaDB API | `jarvis_palace_memory.py` `_extract_drawers_from_sqlite()` |
 | | | `detect_chromadb_version()` — SQLite schema inspection for 0.5.x/0.6.x/1.x | `jarvis_palace_memory.py` `_detect_chromadb_version()` |
 | | | Temp palace + `shutil.move` swap pattern for safe restore | `jarvis_palace_memory.py` `cmd_restore()` |
-| | | `ORT_DISABLE_COREML=1` on Apple Silicon (ONNX CoreML segfault fix) | All 5 mentor scripts + `tests/conftest.py` |
+| | | `ORT_DISABLE_COREML=1` + CPU-only test collection helper on Apple Silicon (ONNX CoreML segfault fix) | All 5 mentor scripts + `tests/conftest.py` + `tests/chromadb_test_utils.py` |
 | | | Posthog telemetry logger suppression (`logging.CRITICAL`) | All 5 mentor scripts + `tests/conftest.py` |
 | | | Module-level HOME isolation in test conftest | `tests/conftest.py` env setup pattern |
 | | | Palace directory `chmod 0o700` | `jarvis_palace_memory.py` `_get_collection()` |

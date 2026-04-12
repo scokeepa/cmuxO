@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Opus (Main Orchestrator)                  │
+│                    Opus (Boss Orchestrator)                  │
 │  역할: 코드리뷰, 설계판단, 작업큐관리, 커밋                 │
 │  금지: 직접 코딩, 수동 폴링                                 │
 ├─────────────────────────────────────────────────────────────┤
@@ -55,13 +55,13 @@ cat /tmp/cmux-eagle-status.json
 |------|------|---------|
 | **WORKING** | 작업 실행 중 | 전송 금지, 대기 |
 | **IDLE** | 대기 중 (프롬프트) | DONE 확인 후 새 작업 배정 |
-| **WAITING** | 질문/확인 대기 | Main이 즉시 cmux send로 답변 |
+| **WAITING** | 질문/확인 대기 | Boss가 즉시 cmux send로 답변 |
 | **ERROR** | 오류 발생 | 복구 조치 즉시 실행 |
 | **UNKNOWN** | 상태 판별 불가 | 수동 확인 |
 
 ## WAITING 감지 시 즉시 대응 (MANDATORY)
 
-WAITING surface는 사용자 입력을 기다리는 중 — Main이 cmux send로 즉시 답변해야 함.
+WAITING surface는 사용자 입력을 기다리는 중 — Boss가 cmux send로 즉시 답변해야 함.
 방치하면 해당 surface가 영원히 대기 → IDLE=0 원칙 위반.
 
 ```bash
@@ -73,7 +73,7 @@ cmux send-key --surface surface:N enter
 
 ## 능동적 확인 프로토콜 (MANDATORY — eagle만으로는 부족!)
 
-eagle_watcher는 20초 폴링이므로 실시간이 아님. Main이 **능동적으로** 확인해야 함.
+eagle_watcher는 20초 폴링이므로 실시간이 아님. Boss가 **능동적으로** 확인해야 함.
 
 ```bash
 # 1. 작업 디스패치 전 surface 상태 확인 (MANDATORY)
@@ -153,7 +153,7 @@ Agent(subagent_type="general-purpose", model="haiku", name="cmuxeagle",
 Haiku eagle 감시자 = bash(cmux read-screen) + Haiku 1회 판단
   ├── cmux read-screen × 4 surfaces = bash 명령 4회 (API 0원)
   ├── Haiku 에이전트 = Anthropic API 1회 (Haiku, 별도 rate limit)
-  ├── Main Opus = API 1회 (eagle 결과 처리)
+  ├── Boss Opus = API 1회 (eagle 결과 처리)
   └── 총: Haiku 1 + Opus 1 = 동시 API 2개 (529 임계치 이하)
 ```
 
@@ -161,8 +161,8 @@ Haiku eagle 감시자 = bash(cmux read-screen) + Haiku 1회 판단
 |---------|---------|---------|---------|
 | eagle_watcher.sh | 없음 (bash) | 1 | 없음 |
 | cmuxeagle | Haiku API | 1 | 없음 (별도 rate limit) |
-| cmuxreview | Opus API | 1 | 낮음 (Main과 동시 최대 2) |
-| Main | Opus API | 1 | 기본 |
+| cmuxreview | Opus API | 1 | 낮음 (Boss과 동시 최대 2) |
+| Boss | Opus API | 1 | 기본 |
 | cmux send 대상 | 외부 AI | 4 | 없음 (Anthropic 아님) |
 | **총 동시 API** | | **최대 3** | **안전** |
 
@@ -170,13 +170,13 @@ Haiku eagle 감시자 = bash(cmux read-screen) + Haiku 1회 판단
 
 ```
 1. 세션 시작 → eagle_watcher.sh 백그라운드 실행
-2. Main이 작업 큐 생성 (WORK_QUEUE JSON)
-3. Main이 cmuxeagle(haiku) 디스패치:
+2. Boss가 작업 큐 생성 (WORK_QUEUE JSON)
+3. Boss가 cmuxeagle(haiku) 디스패치:
    - "이 작업 큐를 IDLE surface들에 분배해"
    - eagle는 상태 파일 읽고 → cmux send로 전달
-4. Main은 코드리뷰/설계 작업에 집중
+4. Boss는 코드리뷰/설계 작업에 집중
 5. 20초 후: eagle_watcher.sh가 상태 갱신
-6. Main이 cat /tmp/cmux-eagle-status.json 읽기 (bash 1회)
+6. Boss가 cat /tmp/cmux-eagle-status.json 읽기 (bash 1회)
 7. IDLE surface 발견 → 새 cmuxeagle 디스패치 (작업 큐의 다음 항목)
 8. 반복
 ```

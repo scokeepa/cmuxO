@@ -8,6 +8,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "cmux-jarvis", "scripts"))
 import jarvis_failure_classifier as fc
+from chromadb_test_utils import create_collection, get_collection
 
 AXES = ("decomp", "verify", "orch", "fail", "ctx", "meta")
 
@@ -23,9 +24,9 @@ def _add_signals(td, antipattern_count=0):
     os.makedirs(fc.PALACE_PATH, exist_ok=True)
     client = chromadb.PersistentClient(path=fc.PALACE_PATH)
     try:
-        col = client.get_collection(fc.COLLECTION_NAME)
+        col = get_collection(client, fc.COLLECTION_NAME)
     except Exception:
-        col = client.create_collection(fc.COLLECTION_NAME)
+        col = create_collection(client, fc.COLLECTION_NAME)
 
     for i in range(5):
         ap = "verification_skip" if i < antipattern_count else ""
