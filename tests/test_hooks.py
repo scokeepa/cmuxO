@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """test_hooks.py — Hook stdin protection + mode gate tests."""
 import json
+import importlib.util
 import os
 import subprocess
 import sys
@@ -76,6 +77,17 @@ def run_hook(hook_name, stdin_data="", orch_mode=True):
             os.remove(ORCH_FLAG)
 
 
+def load_control_tower_guard_module():
+    """control tower guard hook 모듈을 직접 로드한다."""
+    hook_path = os.path.join(HOOKS_DIR, "cmux-control-tower-guard.py")
+    spec = importlib.util.spec_from_file_location("cmux_control_tower_guard", hook_path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_fail_closed_empty_stdin():
     for hook in FAIL_CLOSED:
         stdout, stderr, rc = run_hook(hook, "", orch_mode=True)
@@ -146,6 +158,32 @@ def test_malformed_json_stdin():
         print(f"  malformed_json ({hook}): PASS")
 
 
+def test_control_tower_guard_detects_only_actual_close_workspace_commands():
+    """문자열 언급은 허용하고 실제 cmux close-workspace 명령만 감지한다."""
+    module = load_control_tower_guard_module()
+
+    indirect_mentions = [
+        'echo "cmux-stop에서 close-workspace 옵션이 있다"',
+        "echo cmux close-workspace",
+        'grep "close-workspace" README.md',
+        'python3 -c "print(\'cmux close-workspace --workspace workspace:1\')"',
+    ]
+    actual_commands = [
+        "cmux close-workspace",
+        "cmux close-workspace --workspace workspace:1",
+        "true && cmux close-workspace --workspace workspace:1",
+        "grep watcher README.md | cmux close-workspace --workspace workspace:2",
+        "sudo cmux close-workspace --workspace workspace:3",
+        "if cmux close-workspace --workspace workspace:4; then echo closed; fi",
+    ]
+
+    for command in indirect_mentions:
+        assert not module.is_close_workspace_command(command), command
+
+    for command in actual_commands:
+        assert module.is_close_workspace_command(command), command
+
+
 if __name__ == "__main__":
     _check_hooks_available()
     print("=== Hook stdin protection tests ===")
@@ -158,4 +196,5 @@ if __name__ == "__main__":
     test_individual_mode_approve()
     print()
     test_malformed_json_stdin()
+    test_control_tower_guard_detects_only_actual_close_workspace_commands()
     print("=== ALL PASSED ===")

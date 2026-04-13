@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-13 (Control Tower Guard false positive hardening)
+
+- `cmux-control-tower-guard.py`의 `cmux close-workspace` 감지를 `is_close_workspace_command()`로 분리.
+- `shlex` shell token stream 기준으로 명령 시작 또는 command boundary 뒤의 실제 `cmux close-workspace`만 감지하도록 보강.
+- `echo cmux close-workspace`, `grep "close-workspace" README.md` 같은 간접 문자열 언급 false positive 회귀 테스트 추가.
+- `docs/03-operations/control-tower-guard-false-positive.md`를 해결 상태로 갱신.
+
 ## 2026-04-12 (External Review Follow-up — CPU Test Path + Nudge SSOT)
 
 **레드팀 재검증 후 차단 이슈 수정 — 78/78 tests passed**

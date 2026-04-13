@@ -11,6 +11,41 @@ import shlex
 import sys
 
 ROLES_FILE = "/tmp/cmux-roles.json"
+COMMAND_BOUNDARIES = {"&&", "||", "|", ";", "(", ")"}
+COMMAND_PREFIX_KEYWORDS = {"!", "if", "then", "elif", "else", "do", "while", "until", "time"}
+COMMAND_WRAPPERS = {"builtin", "command", "exec", "sudo"}
+COMMAND_PREFIX_TOKENS = COMMAND_PREFIX_KEYWORDS | COMMAND_WRAPPERS
+
+
+def is_close_workspace_command(command: str) -> bool:
+    """실제 cmux close-workspace 명령인지 판별한다."""
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+    except ValueError:
+        return False
+
+    expect_command = True
+    for i, token in enumerate(tokens):
+        if token in COMMAND_BOUNDARIES:
+            expect_command = True
+            continue
+        if expect_command and "=" in token and not token.startswith("="):
+            continue
+        if expect_command and token in COMMAND_PREFIX_TOKENS:
+            continue
+        if (
+            expect_command
+            and i + 1 < len(tokens)
+            and token == "cmux"
+            and tokens[i + 1] == "close-workspace"
+        ):
+            return True
+        expect_command = False
+
+    return False
 
 
 def main():
@@ -30,19 +65,7 @@ def main():
 
     command = inp.get("tool_input", {}).get("command", "")
 
-    # shlex 토큰화로 실제 cmux close-workspace 명령만 정확히 감지
-    # (echo "close-workspace", grep "close-workspace" 등 간접 참조는 통과)
-    is_close_cmd = False
-    try:
-        tokens = shlex.split(command)
-        for i, token in enumerate(tokens):
-            if token == "cmux" and i + 1 < len(tokens) and tokens[i + 1] == "close-workspace":
-                is_close_cmd = True
-                break
-    except ValueError:
-        pass
-
-    if not is_close_cmd:
+    if not is_close_workspace_command(command):
         print(json.dumps({"decision": "approve"}))
         return
 
