@@ -6,21 +6,21 @@
 <p align="center"><strong>cmux Orchestration JARVIS Watcher Pack</strong></p>
 
 <p align="center">
-  <strong>AI Multi-Agent Orchestration Platform for Claude Code</strong><br>
+  <strong>cmux-O AI Orchestration Core for Claude Code</strong><br>
   One command. Multiple AIs. Parallel execution. Self-healing.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/skills-9-blue?style=flat-square" alt="9 Skills">
-  <img src="https://img.shields.io/badge/hooks-31-orange?style=flat-square" alt="31 Hooks">
-  <img src="https://img.shields.io/badge/restore-SQL%20extract-ff6b6b?style=flat-square" alt="SQL Extract Restore">
-  <img src="https://img.shields.io/badge/files-216-green?style=flat-square" alt="216 Files">
-  <img src="https://img.shields.io/badge/tests-86-informational?style=flat-square" alt="86 Tests">
-  <img src="https://img.shields.io/badge/mentor%20scripts-6-blueviolet?style=flat-square" alt="6 Mentor Scripts">
-  <img src="https://img.shields.io/badge/arch%20docs-22-informational?style=flat-square" alt="22 Architecture Docs">
-  <img src="https://img.shields.io/badge/memory-ChromaDB-ff6b6b?style=flat-square" alt="ChromaDB">
-  <img src="https://img.shields.io/badge/platform-macOS(cmux)%20%7C%20Windows(cmuxw)%20%7C%20Linux%20%7C%20WSL-lightgrey?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/cmux--O%20skills-9-blue?style=flat-square" alt="cmux-O skills 9">
+  <img src="https://img.shields.io/badge/cmux--O%20hooks-31-orange?style=flat-square" alt="cmux-O hooks 31">
+  <img src="https://img.shields.io/badge/cmux--O%20restore-SQL%20extract-ff6b6b?style=flat-square" alt="cmux-O restore SQL extract">
+  <img src="https://img.shields.io/badge/cmux--O%20files-216-green?style=flat-square" alt="cmux-O files 216">
+  <img src="https://img.shields.io/badge/cmux--O%20tests-86-informational?style=flat-square" alt="cmux-O tests 86">
+  <img src="https://img.shields.io/badge/cmux--O%20mentor%20scripts-6-blueviolet?style=flat-square" alt="cmux-O mentor scripts 6">
+  <img src="https://img.shields.io/badge/cmux--O%20arch%20docs-22-informational?style=flat-square" alt="cmux-O architecture docs 22">
+  <img src="https://img.shields.io/badge/cmux--O%20memory-ChromaDB-ff6b6b?style=flat-square" alt="cmux-O memory ChromaDB">
+  <img src="https://img.shields.io/badge/cmux--O%20platform-macOS(cmux)%20%7C%20Windows(cmuxw)%20%7C%20Linux%20%7C%20WSL-lightgrey?style=flat-square" alt="cmux-O platform">
+  <img src="https://img.shields.io/badge/cmux--O%20license-MIT-yellow?style=flat-square" alt="cmux-O license MIT">
 </p>
 
 ---
