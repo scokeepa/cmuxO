@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480" role="img" aria-labelledby="title desc">
-  <title id="title">cmux-O mark</title>
+  <title id="title">cmuxO mark</title>
   <desc id="desc">A glowing circular O with a golden AI eye motif.</desc>
   <defs>
     <radialGradient id="bgGlow" cx="50%" cy="42%" r="58%">
@@ -40,5 +40,5 @@
   <circle cx="249" cy="221" r="4" fill="#ffffff" opacity="0.9"/>
 
   <path d="M171 338 C208 314, 272 314, 309 338" fill="none" stroke="#ffd54a" stroke-width="5" opacity="0.9"/>
-  <text x="240" y="384" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700" fill="#dff2ff" letter-spacing="2">cmux-O</text>
+  <text x="240" y="384" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700" fill="#dff2ff" letter-spacing="2">cmuxO</text>
 </svg>

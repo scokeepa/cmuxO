@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="cmux-O-logo.svg" alt="cmux-O 로고" width="260">
+  <img src="cmuxO-logo.svg" alt="cmuxO 로고" width="260">
 </p>
 
-<h1 align="center">cmux-O</h1>
+<h1 align="center">cmuxO</h1>
 <p align="center"><strong>cmux 오케스트레이션 JARVIS 와쳐 팩</strong></p>
 <p align="center"><strong>언어:</strong> 한국어 | <a href="README.md">English</a></p>
 
@@ -10,7 +10,7 @@
 
 ## 개요
 
-`cmux-O`는 Claude Code 멀티 에이전트 오케스트레이션 팩입니다.  
+`cmuxO`는 Claude Code 멀티 에이전트 오케스트레이션 팩입니다.  
 Boss, Watcher, JARVIS를 결합해 병렬 작업, 상태 감시, 운영 자동화를 제공합니다.
 
 - 병렬 작업 배정 및 수집

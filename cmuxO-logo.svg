@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480" role="img" aria-labelledby="title desc">
+  <title id="title">cmuxO symbol</title>
+  <desc id="desc">Minimal O ring with a subtle golden eye inside.</desc>
+  <defs>
+    <linearGradient id="oRing" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#a9e5ff"/>
+      <stop offset="48%" stop-color="#75b8ff"/>
+      <stop offset="100%" stop-color="#475ce0"/>
+    </linearGradient>
+    <linearGradient id="eyeStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f7c94b"/>
+      <stop offset="55%" stop-color="#ffd976"/>
+      <stop offset="100%" stop-color="#e9ab2a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- O only: no external motif/background -->
+  <circle cx="240" cy="240" r="156" fill="none" stroke="url(#oRing)" stroke-width="26"/>
+
+  <!-- Minimal eye inside O -->
+  <ellipse cx="240" cy="240" rx="74" ry="34" fill="none" stroke="url(#eyeStroke)" stroke-width="7"/>
+  <circle cx="240" cy="240" r="22" fill="#f5c64b"/>
+  <circle cx="240" cy="240" r="11" fill="#0b0f17"/>
+  <circle cx="246" cy="234" r="2.6" fill="#fff3c8" opacity="0.95"/>
+</svg>
