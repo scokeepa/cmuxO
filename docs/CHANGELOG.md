@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-04-14 (Watcher Windows-native fallback hardening)
+
+- `watcher-scan.py`에 `read_surface_text()`를 추가해 `bash read-surface.sh` 실패 시 `cmux capture-pane/read-screen` native fallback으로 surface 텍스트를 읽도록 보강.
+- `watcher-scan.py`의 watcher heartbeat를 `role-register.sh` 경로 + JSON 직접 갱신 fallback 이중 경로로 보강 (`bash` 미존재 환경 대응).
+- `watcher-scan.py`에서 남아 있던 literal `subprocess.run(["cmux", ...])` 호출을 공통 `run_cmd()` 경로로 통합해 `cmuxw` 라우팅 누락 지점 제거.
+- 원자적 파일 교체를 `os.replace()`로 정리하여 Windows에서 기존 파일 overwrite 실패 가능성 완화.
+- pipe-pane 상태 파일 SSOT를 `cmux-pipe-pane-installed.json`으로 정렬 (`activation-hook.sh`, `cmux-watcher-session.sh`).
+- 회귀 테스트 확장: `tests/test_watcher_scan.py` 4 → 7 (`bash` 없는 fallback, heartbeat direct fallback, literal subprocess cmux 재유입 차단).
+- 문서 동기화: `README.md`, `docs/03-operations/cross-platform.md`, `docs/04-development/test-guide.md`.
+- README Cross-Platform 섹션에 공식 바이너리 소스 명시: macOS [`manaflow-ai/cmux`](https://github.com/manaflow-ai/cmux), Windows [`scokeepa/cmuxw`](https://github.com/scokeepa/cmuxw).
+
 ## 2026-04-13 (Control Tower Guard false positive hardening)
 
 - `cmux-control-tower-guard.py`의 `cmux close-workspace` 감지를 `is_close_workspace_command()`로 분리.

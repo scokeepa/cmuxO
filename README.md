@@ -17,11 +17,11 @@
   <img src="https://img.shields.io/badge/hooks-31-orange?style=flat-square" alt="31 Hooks">
   <img src="https://img.shields.io/badge/restore-SQL%20extract-ff6b6b?style=flat-square" alt="SQL Extract Restore">
   <img src="https://img.shields.io/badge/files-216-green?style=flat-square" alt="216 Files">
-  <img src="https://img.shields.io/badge/tests-78%20passed-brightgreen?style=flat-square" alt="78 Tests">
+  <img src="https://img.shields.io/badge/tests-86-informational?style=flat-square" alt="86 Tests">
   <img src="https://img.shields.io/badge/mentor%20scripts-6-blueviolet?style=flat-square" alt="6 Mentor Scripts">
   <img src="https://img.shields.io/badge/arch%20docs-22-informational?style=flat-square" alt="22 Architecture Docs">
   <img src="https://img.shields.io/badge/memory-ChromaDB-ff6b6b?style=flat-square" alt="ChromaDB">
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-macOS(cmux)%20%7C%20Windows(cmuxw)%20%7C%20Linux%20%7C%20WSL-lightgrey?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="MIT License">
 </p>
 
@@ -174,7 +174,7 @@ Hooks form an invisible governance layer that physically prevents protocol viola
   Tool executes normally
 ```
 
-> **Key design principle:** All 30 hooks are **dormant** until `/cmux-start` activates orchestration mode (`/tmp/cmux-orch-enabled`). In normal Claude Code usage, zero interference.
+> **Key design principle:** All 31 hooks are **dormant** until `/cmux-start` activates orchestration mode (`/tmp/cmux-orch-enabled`). In normal Claude Code usage, zero interference.
 
 ---
 
@@ -263,7 +263,7 @@ Detect --> Analyze --> Propose --> [User Approves] --> Backup --> Implement --> 
 
 ---
 
-## 30 Hooks: 4-Tier Enforcement
+## 31 Hooks: 4-Tier Enforcement
 
 All hooks are **dormant until `/cmux-start`**. Zero interference in normal usage.
 
@@ -326,7 +326,13 @@ All hooks are **dormant until `/cmux-start`**. Zero interference in normal usage
 
 ## Cross-Platform
 
-Runs on macOS, Linux, and WSL. OS-specific commands are abstracted through `cmux_compat` — a Python daemon that normalizes `grep -P`, `date -j`, `stat -f`, and 7 other OS-dependent operations into a single API.
+Runs on macOS, Windows, Linux, and WSL.
+
+- Terminal binary routing is OS-aware by default: `cmux` on macOS/Linux, `cmuxw` on Windows.
+- macOS binary source: [`manaflow-ai/cmux`](https://github.com/manaflow-ai/cmux)
+- Windows binary source: [`scokeepa/cmuxw`](https://github.com/scokeepa/cmuxw)
+- You can force an explicit binary with `CMUX_BIN=/path/to/cmux-or-cmuxw`.
+- OS-specific shell differences are abstracted through `cmux_compat` — a Python daemon that normalizes `grep -P`, `date -j`, `stat -f`, and other OS-dependent operations into a single API.
 
 - Auto-starts with `/cmux-start` via Unix socket (`/tmp/cmux-compat.sock`)
 - Falls back to inline `python3` if daemon is unavailable
@@ -452,16 +458,17 @@ With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
 
 ```
   test_cmux_utils        ████████████████  9 tests   Core utilities
-  test_hooks             ██████████        5 tests   Hook enforcement
+  test_hooks             ██████████        6 tests   Hook enforcement
   test_mentor_signal     ██████████████    7 tests   6-axis signal + mentor.enabled gate
   test_palace_memory     ████████████████████████ 13 tests  Palace memory + restore + version detect
   test_redaction         ████████████████  8 tests   Privacy redaction + sanitize
   test_context_injection ██████████        5 tests   Prompt injection logic
-  test_nudge             ████████████████████████ 16 tests  Nudge L1 + cooldown + authority + redaction
+  test_nudge             ████████████████████████ 18 tests  Nudge L1 + cooldown + authority + redaction
   test_mentor_report     ████████████      6 tests   Report generation
   test_failure_class.    ██████████████    7 tests   Failure classification
+  test_watcher_scan      ████████          4 tests   Watcher regression (path/timeout/pipe-pane)
   ─────────────────────────────────────────────────
-  Total                                   78 tests  ALL PASSED
+  Total                                   83 tests  ALL PASSED
 ```
 
 ### Codebase Scale
@@ -473,7 +480,7 @@ With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
 | cmux-jarvis | 35 | ~6K | Evolution + Mentor + ChromaDB Memory |
 | Mentor scripts | 6 | ~1,300 | Signal, Memory, Redactor, Nudge, Report, Classifier |
 | Architecture docs | 22 | ~2,000 | System + JARVIS + operations + dev |
-| Tests | 10 | ~1,200 | 78 unit tests (ChromaDB-based) |
+| Tests | 11 | ~1,350 | 83 unit tests (ChromaDB-based) |
 
 ---
 
@@ -563,7 +570,7 @@ cmux-orchestrator-watcher-pack/           216 files
 |   |-- 05-research/          (3)          Repo survey, Claude source findings
 |   |-- 99-archive/           (14)         Deprecated docs preserved
 |   +-- CHANGELOG.md                       Full version history
-+-- tests/                    (9)          78 unit tests (ChromaDB-based)
++-- tests/                    (10)         83 unit tests (ChromaDB-based)
 ```
 
 ---

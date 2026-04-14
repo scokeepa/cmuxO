@@ -34,8 +34,8 @@ python3 "$DETECT" "$MY_NUM" --no-activate > /dev/null 2>&1
 # =====================================================================
 WATCHER_SCAN="$HOME/.claude/skills/cmux-watcher/scripts/watcher-scan.py"
 
-# pipe-pane 플래그 리셋 (새 세션이면 재설치 필요)
-rm -f /tmp/cmux-pipe-pane-initialized.flag
+# pipe-pane 설치 상태 리셋 (새 세션이면 재설치 필요)
+rm -f /tmp/cmux-pipe-pane-installed.json
 
 # Vision Diff 이전 캡처 리셋 (새 세션 기준점)
 rm -f /tmp/cmux-vdiff-prev.json

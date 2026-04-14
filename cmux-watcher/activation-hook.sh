@@ -38,7 +38,7 @@ pkill -f "watcher-scan.py.*--continuous" 2>/dev/null || true
 sleep 1
 
 # 플래그 초기화 (깨끗한 시작)
-rm -f /tmp/cmux-vdiff-prev.json /tmp/cmux-pipe-pane-initialized.flag
+rm -f /tmp/cmux-vdiff-prev.json /tmp/cmux-pipe-pane-installed.json
 
 # =============================================================
 # Watchdog: watcher-scan.py가 죽으면 자동 재시작

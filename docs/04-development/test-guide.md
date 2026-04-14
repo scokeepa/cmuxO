@@ -1,6 +1,6 @@
 # Test Guide
 
-> 78 tests 구조, 실행 방법, 패턴. (ChromaDB 기반)
+> 86 tests 구조, 실행 방법, 패턴. (ChromaDB 기반)
 
 ## 실행
 
@@ -13,7 +13,7 @@ python3 -m pytest tests/ -v
 | 파일 | 테스트 수 | 대상 |
 |------|-----------|------|
 | `test_cmux_utils.py` | 9 | 핵심 유틸리티 (atomic write, locked update, queue) |
-| `test_hooks.py` | 5 | Hook 강제 (fail-closed, fail-open, silent, approve) |
+| `test_hooks.py` | 6 | Hook 강제 (fail-closed, fail-open, silent, approve) |
 | `test_mentor_signal.py` | 7 | 6축 signal (emit, insufficient, fit score, antipattern, prune, query, disabled) |
 | `test_palace_memory.py` | 13 | L0/L1 context, search, export/import, backup, restore, SQL extract, version detect |
 | `test_redaction.py` | 8 | 민감 정보 redaction (5 patterns + path + mixed + false positive) |
@@ -21,6 +21,7 @@ python3 -m pytest tests/ -v
 | `test_nudge.py` | 18 | L1 nudge (send, block, cooldown, same-timestamp audit, targets, wing 격리, send failure, cross-ws, fallback, boss-only SSOT, reason enum, redaction) |
 | `test_mentor_report.py` | 6 | Report (generate, insufficient, timeline, disclaimer, trend, gate) |
 | `test_failure_classifier.py` | 7 | Failure classify (system, user, mixed, none, iron law, empty, evidence) |
+| `test_watcher_scan.py` | 7 | Watcher 회귀 (heartbeat 경로, timeout degrade, pipe-pane 증분 설치, bash-free fallback, literal cmux subprocess 차단) |
 
 ## 패턴
 

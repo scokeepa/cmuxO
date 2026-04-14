@@ -15,6 +15,7 @@ Output: JSON with prioritized alerts + recommended actions.
 
 import json
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -61,10 +62,46 @@ WATCHER_ALERTS_FILE = Path("/tmp/cmux-watcher-alerts.json")
 WATCHER_HISTORY_FILE = Path("/tmp/cmux-watcher-history.jsonl")
 VISION_DIFF_DIR = Path("/tmp/cmux-vdiff")
 VISION_DIFF_PREV = Path("/tmp/cmux-vdiff-prev.json")  # {surface_id: cleaned_text}
-PIPE_PANE_INITIALIZED = Path("/tmp/cmux-pipe-pane-initialized.flag")
+PIPE_PANE_INSTALLED_FILE = Path("/tmp/cmux-pipe-pane-installed.json")
 SURFACE_MAP_FILE = Path("/tmp/cmux-surface-map.json")
 PAUSE_FLAG = Path("/tmp/cmux-paused.flag")
 WATCHER_MUTE_FLAG = Path("/tmp/cmux-watcher-muted.flag")
+
+
+def _resolve_cmux_cmd() -> str:
+    """Resolve platform-specific cmux binary.
+
+    Priority:
+    1) CMUX_BIN env override
+    2) platform defaults (mac/linux: cmux, windows: cmuxw then cmux)
+    """
+    env_cmd = os.environ.get("CMUX_BIN", "").strip()
+    if env_cmd:
+        return env_cmd
+
+    candidates = ["cmux", "cmuxw"]
+    if os.name == "nt":
+        candidates = ["cmuxw", "cmux"]
+
+    for candidate in candidates:
+        if shutil.which(candidate):
+            return candidate
+
+    # Keep legacy default for error messages and fallback attempts.
+    return "cmux"
+
+
+def _resolve_bash_cmd() -> str | None:
+    """Resolve bash command name/path if available."""
+    for candidate in ("bash", "bash.exe"):
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
+
+
+CMUX_CMD = _resolve_cmux_cmd()
+BASH_CMD = _resolve_bash_cmd()
 
 # Thresholds
 IDLE_ALERT_SECONDS = 90       # Alert if IDLE for > 90s
@@ -91,7 +128,7 @@ def _save_debounce(idle, done):
         tmp = str(DEBOUNCE_FILE) + ".tmp"
         with open(tmp, "w") as f:
             json.dump({"idle": idle, "done": done}, f)
-        os.rename(tmp, str(DEBOUNCE_FILE))
+        os.replace(tmp, str(DEBOUNCE_FILE))
     except Exception:
         pass
 
@@ -104,9 +141,18 @@ _idle_debounce, _done_reported = _load_debounce()
 
 def run_cmd(cmd: list[str], timeout: int = 30) -> tuple[str, int]:
     """Run a command and return (stdout, exit_code)."""
+    actual_cmd = list(cmd)
+    if actual_cmd:
+        if actual_cmd[0] == "cmux":
+            actual_cmd[0] = CMUX_CMD
+        elif actual_cmd[0] == "bash":
+            if BASH_CMD:
+                actual_cmd[0] = BASH_CMD
+            else:
+                return "", 127
     try:
         result = subprocess.run(
-            cmd,
+            actual_cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -116,6 +162,91 @@ def run_cmd(cmd: list[str], timeout: int = 30) -> tuple[str, int]:
         return "", 124
     except FileNotFoundError:
         return "", 127
+
+
+def _resolve_workspace_for_surface(sid: str) -> str:
+    """Resolve workspace ref for a surface via native cmux tree JSON."""
+    output, rc = run_cmd(["cmux", "tree", "--all", "--json"], timeout=12)
+    if rc != 0 or not output:
+        return ""
+    try:
+        tree = json.loads(output)
+    except json.JSONDecodeError:
+        return ""
+
+    sid_ref = f"surface:{sid}"
+    for workspace in tree.get("workspaces", []):
+        workspace_ref = workspace.get("refId") or workspace.get("id") or ""
+        for surface in workspace.get("surfaces", []):
+            surface_ref = surface.get("refId") or surface.get("id") or ""
+            if str(surface_ref) == sid_ref or str(surface_ref).replace("surface:", "") == sid:
+                return str(workspace_ref)
+    return ""
+
+
+def read_surface_text(sid: str, *, lines: int = 20, scrollback: bool = False) -> tuple[str, int]:
+    """Read surface text with bash-script path first, native cmux fallback second."""
+    if BASH_CMD and READ_SURFACE.exists():
+        cmd = ["bash", str(READ_SURFACE), sid]
+        if scrollback:
+            cmd += ["--scrollback"]
+        cmd += ["--lines", str(lines)]
+        text, rc = run_cmd(cmd, timeout=10)
+        if rc == 0 and text:
+            return text, rc
+
+    workspace_ref = _resolve_workspace_for_surface(sid)
+    if not workspace_ref:
+        return "", 127
+
+    surface_ref = f"surface:{sid}"
+    capture_cmd = [
+        "cmux",
+        "capture-pane",
+        "--workspace",
+        workspace_ref,
+        "--surface",
+        surface_ref,
+    ]
+    if scrollback:
+        capture_cmd.append("--scrollback")
+    capture_cmd += ["--lines", str(lines)]
+
+    text, rc = run_cmd(capture_cmd, timeout=10)
+    if rc == 0 and text:
+        return text, rc
+
+    read_cmd = [
+        "cmux",
+        "read-screen",
+        "--workspace",
+        workspace_ref,
+        "--surface",
+        surface_ref,
+    ]
+    if scrollback:
+        read_cmd.append("--scrollback")
+    read_cmd += ["--lines", str(lines)]
+    return run_cmd(read_cmd, timeout=10)
+
+
+def update_role_heartbeat(role: str, *, path: Path = Path("/tmp/cmux-roles.json")) -> bool:
+    """Best-effort JSON heartbeat update when bash role script is unavailable."""
+    try:
+        data = json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    if role not in data or not isinstance(data.get(role), dict):
+        return False
+    data[role]["last_heartbeat"] = utc_now()
+    try:
+        tmp = str(path) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, str(path))
+        return True
+    except Exception:
+        return False
 
 
 def utc_now() -> str:
@@ -361,7 +492,7 @@ def write_surface_map(eagle_data: dict) -> None:
         tmp_path = str(SURFACE_MAP_FILE) + ".tmp"
         with open(tmp_path, "w") as tmp:
             json.dump(surface_map, tmp, indent=2, ensure_ascii=False)
-        os.rename(tmp_path, str(SURFACE_MAP_FILE))
+        os.replace(tmp_path, str(SURFACE_MAP_FILE))
         logging.info(f"Surface map updated: {len(surfaces)} surfaces, {len(departments)} depts")
     except Exception:
         pass
@@ -370,10 +501,7 @@ def write_surface_map(eagle_data: dict) -> None:
     boss_ws = roles.get("boss", {}).get("workspace", "")
     if boss_ws:
         try:
-            subprocess.run(
-                ["cmux", "reorder-workspace", "--workspace", boss_ws, "--index", "0"],
-                capture_output=True, timeout=5
-            )
+            run_cmd(["cmux", "reorder-workspace", "--workspace", boss_ws, "--index", "0"], timeout=5)
         except Exception:
             pass
 
@@ -384,13 +512,67 @@ def write_surface_map(eagle_data: dict) -> None:
 
 def run_eagle_scan() -> dict:
     """Run eagle_watcher.sh --once and return parsed status."""
+    def run_native_tree_fallback(reason: str) -> dict:
+        """Windows/compat fallback: query cmux tree directly without bash scripts."""
+        output, exit_code = run_cmd(["cmux", "tree", "--all", "--json"], timeout=15)
+        if exit_code != 0 or not output:
+            return {"error": f"L1 scan unavailable: {reason}; native tree fallback failed"}
+        try:
+            tree = json.loads(output)
+        except json.JSONDecodeError:
+            return {"error": f"L1 scan unavailable: {reason}; invalid native tree json"}
+
+        # kwcmux contract: {"workspaces":[...]} with each surface having refId/id/name.
+        workspaces = tree.get("workspaces", []) if isinstance(tree, dict) else []
+        surfaces = {}
+        for workspace in workspaces:
+            workspace_ref = workspace.get("refId") or workspace.get("id") or "workspace:1"
+            for surface in workspace.get("surfaces", []):
+                surface_ref = surface.get("refId") or surface.get("id") or "surface:0"
+                sid = str(surface_ref).replace("surface:", "")
+                surfaces[sid] = {
+                    "status": "UNKNOWN",
+                    "ai": surface.get("name", "unknown"),
+                    "workspace": workspace_ref,
+                    "surface": surface_ref,
+                    "title": surface.get("name", ""),
+                    "snippet": "",
+                    "source": "native-tree-fallback",
+                }
+
+        if not surfaces:
+            return {"error": f"L1 scan unavailable: {reason}; no surfaces in native tree output"}
+
+        return {
+            "source": "native-tree-fallback",
+            "surfaces": surfaces,
+            "stats": {
+                "total": len(surfaces),
+                "working": 0,
+                "idle": 0,
+                "done": 0,
+                "error": 0,
+                "waiting": 0,
+                "stalled": 0,
+                "rate_limited": 0,
+                "unknown": len(surfaces),
+            },
+            "updated_at": utc_now(),
+        }
+
     if not EAGLE_WATCHER.exists():
-        return {"error": "eagle_watcher.sh not found"}
+        return run_native_tree_fallback("eagle_watcher.sh not found")
+
+    if BASH_CMD is None:
+        return run_native_tree_fallback("bash not found")
 
     output, exit_code = run_cmd(["bash", str(EAGLE_WATCHER), "--once"], timeout=45)
     if exit_code != 0 or not output:
         # Try reading the status file directly (eagle writes to it)
-        return load_json_file(EAGLE_STATUS_FILE)
+        status_data = load_json_file(EAGLE_STATUS_FILE)
+        if status_data.get("surfaces"):
+            return status_data
+        return run_native_tree_fallback(f"eagle watcher failed (exit={exit_code})")
 
     try:
         return json.loads(output)
@@ -482,43 +664,52 @@ def run_vision_diff(surface_ids: list[str]) -> dict[str, str]:
 
     Returns: {surface_id: "STALLED" | "WORKING" | "UNKNOWN"}
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 
     prev = load_vision_diff_prev()
     current: dict[str, str] = {}
     results: dict[str, str] = {}
 
     def _capture_one(sid: str) -> tuple[str, str, int]:
-        text, rc = run_cmd(
-            ["bash", str(READ_SURFACE), sid, "--lines", "20"], timeout=8
-        )
+        text, rc = read_surface_text(sid, lines=20)
         return sid, text, rc
 
     # 병렬 캡처 (최대 4 동시 — cmux 소켓 과부하 방지)
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    max_workers = 4
+    per_task_timeout = 8
+    global_timeout = max(30, math.ceil(len(surface_ids) / max_workers) * per_task_timeout + 5)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(_capture_one, sid): sid for sid in surface_ids}
-        for future in as_completed(futures, timeout=30):
-            try:
-                sid, text, rc = future.result(timeout=10)
-            except Exception:
-                sid = futures[future]
-                results[sid] = "UNKNOWN"
-                continue
+        try:
+            for future in as_completed(futures, timeout=global_timeout):
+                try:
+                    sid, text, rc = future.result(timeout=per_task_timeout + 2)
+                except Exception:
+                    sid = futures[future]
+                    results[sid] = "UNKNOWN"
+                    continue
 
-            if rc != 0 or not text:
-                results[sid] = "UNKNOWN"
-                continue
+                if rc != 0 or not text:
+                    results[sid] = "UNKNOWN"
+                    continue
 
-            cleaned = _clean_for_diff(text)
-            current[sid] = cleaned
+                cleaned = _clean_for_diff(text)
+                current[sid] = cleaned
 
-            prev_cleaned = prev.get(sid, "")
-            if not prev_cleaned:
+                prev_cleaned = prev.get(sid, "")
+                if not prev_cleaned:
+                    results[sid] = "UNKNOWN"
+                elif cleaned == prev_cleaned:
+                    results[sid] = "STALLED"
+                else:
+                    results[sid] = "WORKING"
+        except FuturesTimeout:
+            # Collect completed futures and degrade unfinished ones to UNKNOWN.
+            pass
+
+        for future, sid in futures.items():
+            if not future.done():
                 results[sid] = "UNKNOWN"
-            elif cleaned == prev_cleaned:
-                results[sid] = "STALLED"
-            else:
-                results[sid] = "WORKING"
 
     # 현재 캡처를 저장 (다음 라운드 비교용)
     save_vision_diff_prev(current)
@@ -532,12 +723,22 @@ def run_vision_diff(surface_ids: list[str]) -> dict[str, str]:
 def setup_pipe_pane_hooks(surface_map: dict) -> None:
     """모든 surface에 pipe-pane 훅 설치 — DONE 키워드 플래그 파일 생성.
 
-    한 세션에 1회만 실행 (PIPE_PANE_INITIALIZED 플래그).
+    surface 단위로 증분 설치. 신규 surface에만 hook 적용.
     """
-    if PIPE_PANE_INITIALIZED.exists():
+    try:
+        installed = set(json.loads(PIPE_PANE_INSTALLED_FILE.read_text()))
+    except (FileNotFoundError, json.JSONDecodeError, TypeError):
+        installed = set()
+
+    current_surfaces = set(surface_map.keys())
+    to_install = sorted(current_surfaces - installed)
+    if not to_install:
         return
 
-    for sid, info in surface_map.items():
+    newly_installed = set()
+
+    for sid in to_install:
+        info = surface_map.get(sid, {})
         workspace = info.get("workspace", "")
         surface_ref = info.get("surface", f"surface:{sid}")
         if not workspace:
@@ -546,14 +747,20 @@ def setup_pipe_pane_hooks(surface_map: dict) -> None:
         flag_path = f"/tmp/cmux-done-s{sid}.flag"
         grep_cmd = f"grep -m1 -iE 'DONE:|TASK COMPLETE' > {flag_path}"
 
-        run_cmd([
+        _, rc = run_cmd([
             "cmux", "pipe-pane",
             "--surface", surface_ref,
             "--command", grep_cmd,
             "--workspace", workspace,
         ], timeout=5)
+        if rc == 0:
+            newly_installed.add(sid)
 
-    PIPE_PANE_INITIALIZED.write_text(utc_now())
+    next_installed = sorted((installed & current_surfaces) | newly_installed)
+    try:
+        PIPE_PANE_INSTALLED_FILE.write_text(json.dumps(next_installed))
+    except Exception:
+        pass
 
 
 def check_pipe_pane_flags(surface_ids: list[str]) -> dict[str, bool]:
@@ -574,29 +781,34 @@ def run_ane_ocr_verify(surface_ids: list[str]) -> dict[str, dict]:
 
     병렬 실행으로 블로킹 방지.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 
     if not ANE_TOOL.exists():
         return {}
 
     def _ocr_one(sid: str) -> tuple[str, dict]:
-        text, rc = run_cmd(
-            ["bash", str(READ_SURFACE), sid, "--lines", "15"], timeout=8
-        )
+        text, rc = read_surface_text(sid, lines=15)
         if rc != 0 or not text:
             return sid, {}
         return sid, classify_screen_text(text)
 
     results = {}
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    max_workers = 4
+    per_task_timeout = 8
+    global_timeout = max(30, math.ceil(len(surface_ids) / max_workers) * per_task_timeout + 5)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(_ocr_one, sid): sid for sid in surface_ids}
-        for future in as_completed(futures, timeout=30):
-            try:
-                sid, classification = future.result(timeout=10)
-                if classification:
-                    results[sid] = classification
-            except Exception:
-                continue
+        try:
+            for future in as_completed(futures, timeout=global_timeout):
+                try:
+                    sid, classification = future.result(timeout=per_task_timeout + 2)
+                    if classification:
+                        results[sid] = classification
+                except Exception:
+                    continue
+        except FuturesTimeout:
+            # Degrade gracefully when some surfaces exceed global timeout.
+            pass
     return results
 
 
@@ -605,7 +817,7 @@ def run_ane_ocr_verify(surface_ids: list[str]) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 ROLES_FILE = Path("/tmp/cmux-roles.json")
-ROLE_SCRIPT = Path.home() / ".claude" / "plugins" / "local" / "all-in-one" / "skills" / "cmux-orchestrator" / "scripts" / "role-register.sh"
+ROLE_SCRIPT = ORCHESTRATOR_SCRIPTS / "role-register.sh"
 BOSS_DEAD_THRESHOLD = 120  # 2min no heartbeat = dead
 
 
@@ -685,6 +897,20 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
     history = load_alert_history()
     timestamp = utc_now()
     surfaces = eagle_data.get("surfaces", {})
+
+    if eagle_data.get("error"):
+        alerts.append({
+            "priority": "CRITICAL",
+            "surface_id": "watcher",
+            "surface_ref": "",
+            "workspace": "",
+            "ai": "Watcher",
+            "status": "SCAN_BACKEND_ERROR",
+            "message": str(eagle_data.get("error", "Watcher L1 scan backend unavailable")),
+            "action": "CHECK_WATCHER_BACKEND",
+            "action_detail": "Verify bash/eagle_watcher.sh availability or use native cmux tree fallback.",
+            "timestamp": timestamp,
+        })
 
     for sid, info in surfaces.items():
         status = info.get("status", "UNKNOWN")
@@ -925,6 +1151,27 @@ def generate_report(eagle_data: dict, alerts: list[dict]) -> dict:
     """Generate the final watcher report."""
     stats = eagle_data.get("stats", {})
     timestamp = utc_now()
+    surfaces = eagle_data.get("surfaces", {})
+
+    if not stats and surfaces:
+        derived = {
+            "total": len(surfaces),
+            "working": 0,
+            "idle": 0,
+            "done": 0,
+            "error": 0,
+            "waiting": 0,
+            "stalled": 0,
+            "rate_limited": 0,
+            "unknown": 0,
+        }
+        for info in surfaces.values():
+            status = str(info.get("status", "UNKNOWN")).lower()
+            if status in derived:
+                derived[status] += 1
+            else:
+                derived["unknown"] += 1
+        stats = derived
 
     # Summary counts
     summary = {
@@ -1161,10 +1408,10 @@ def main() -> None:
 
         # 리포트에 감지 계층 활성 현황 추가
         report["layers_active"] = {
-            "L1_eagle": True,
+            "L1_eagle": "error" not in eagle_data,
             "L2_ane_vision": not quick_mode and ANE_TOOL.exists(),
             "L2_5_vision_diff": not quick_mode and len(all_non_self_sids) > 0,
-            "L3_pipe_pane": PIPE_PANE_INITIALIZED.exists(),
+            "L3_pipe_pane": PIPE_PANE_INSTALLED_FILE.exists(),
         }
 
         # Save report
@@ -1264,8 +1511,11 @@ def main() -> None:
 
     def do_heartbeat() -> None:
         """Update watcher heartbeat."""
-        if ROLE_SCRIPT.exists():
-            run_cmd(["bash", str(ROLE_SCRIPT), "heartbeat", "watcher"], timeout=5)
+        if ROLE_SCRIPT.exists() and BASH_CMD:
+            _, rc = run_cmd(["bash", str(ROLE_SCRIPT), "heartbeat", "watcher"], timeout=5)
+            if rc == 0:
+                return
+        update_role_heartbeat("watcher")
 
     # 판정 불가 카운터 (3회 UNKNOWN 연속 → STALLED)
     _boss_unknown_counts: dict[str, int] = {}
@@ -1283,9 +1533,7 @@ def main() -> None:
         except (json.JSONDecodeError, KeyError, OSError):
             return "UNKNOWN"
 
-        text, rc = run_cmd(
-            ["bash", str(READ_SURFACE), sid, "--lines", "10"], timeout=10
-        )
+        text, rc = read_surface_text(sid, lines=10)
         if rc != 0 or not text:
             return "UNKNOWN"
 
