@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/cmux-o-mark.svg" alt="cmux-O logo" width="260">
+  <img src="cmux-O-logo.svg" alt="cmux-O logo" width="260">
 </p>
 
 <h1 align="center">cmux-O</h1>

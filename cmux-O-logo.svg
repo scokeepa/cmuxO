@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480" role="img" aria-labelledby="title desc">
+  <title id="title">cmux-O logo</title>
+  <desc id="desc">Circular cmux-O mark with a golden AI eye.</desc>
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#1f2a44"/>
+      <stop offset="55%" stop-color="#101827"/>
+      <stop offset="100%" stop-color="#060b14"/>
+    </radialGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c9f5ff"/>
+      <stop offset="45%" stop-color="#7fd7ff"/>
+      <stop offset="100%" stop-color="#4568ff"/>
+    </linearGradient>
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffd54a"/>
+      <stop offset="50%" stop-color="#ffeb8a"/>
+      <stop offset="100%" stop-color="#ffbf2f"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="480" height="480" fill="url(#bgGlow)"/>
+
+  <circle cx="240" cy="240" r="168" fill="none" stroke="url(#ringGrad)" stroke-width="24"/>
+  <circle cx="240" cy="240" r="198" fill="none" stroke="#2b3f83" stroke-width="2" opacity="0.6"/>
+
+  <circle cx="240" cy="230" r="108" fill="none" stroke="#6ec6ff" stroke-width="4" opacity="0.78"/>
+  <circle cx="240" cy="230" r="128" fill="none" stroke="#3558d8" stroke-width="2" opacity="0.72"/>
+
+  <ellipse cx="240" cy="230" rx="92" ry="46" fill="none" stroke="url(#eyeGrad)" stroke-width="10" filter="url(#soft)"/>
+  <ellipse cx="240" cy="230" rx="26" ry="26" fill="#ffd54a"/>
+  <circle cx="240" cy="230" r="12" fill="#070b14"/>
+  <circle cx="249" cy="221" r="4" fill="#ffffff" opacity="0.9"/>
+
+  <path d="M171 338 C208 314, 272 314, 309 338" fill="none" stroke="#ffd54a" stroke-width="5" opacity="0.9"/>
+  <text x="240" y="384" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700" fill="#dff2ff" letter-spacing="2">cmux-O</text>
+</svg>
