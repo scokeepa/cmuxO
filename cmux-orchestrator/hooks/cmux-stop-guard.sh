@@ -1,7 +1,7 @@
 #!/bin/bash
 # cmux-stop-guard.sh — Stop hook (v3)
 # 1. WORKING surface 있으면 세션 종료 차단
-# 2. 와쳐 엔터 신호 처리 — 와쳐 AI 완전 종료 후 메인에 /cmux 엔터
+# 2. 와쳐 엔터 신호 처리 — 와쳐 AI 완전 종료 후 Boss에 /cmux 엔터
 
 # 오케스트레이션 모드 아니면 패스
 [ -f /tmp/cmux-orch-enabled ] || exit 0

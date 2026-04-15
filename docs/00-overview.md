@@ -20,7 +20,7 @@ docs/
 | 문서 | 책임 |
 |------|------|
 | [system-overview.md](01-architecture/system-overview.md) | 3계층 구조, 데이터 흐름, 상태 머신 |
-| [orchestrator-architecture.md](01-architecture/orchestrator-architecture.md) | Boss/Main: 디스패치, 수집, 커밋 |
+| [orchestrator-architecture.md](01-architecture/orchestrator-architecture.md) | Boss: 디스패치, 수집, 커밋 |
 | [watcher-architecture.md](01-architecture/watcher-architecture.md) | 4계층 모니터링 (Eagle/OCR/VisionDiff/Pipe-pane) |
 | [hook-enforcement.md](01-architecture/hook-enforcement.md) | 31 hooks, 4-tier 강제, gate matrix |
 | [security.md](01-architecture/security.md) | 8대 보안 메커니즘 |
