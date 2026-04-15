@@ -74,7 +74,28 @@ rm -rf ~/.claude/skills/cmux-help
 rm -rf ~/.claude/skills/cmux-uninstall
 ```
 
-### Step 4-B: 메모리 정리 (선택)
+### Step 4-B: Lid Auto-Pause 훅 제거 (macOS)
+
+`install.sh`가 심어둔 마커 블록만 제거합니다. 사용자가 직접 작성한 `~/.sleep`/`~/.wakeup` 내용은 보존됩니다. sleepwatcher 본체는 건드리지 않습니다 (다른 용도로 사용 중일 수 있음).
+
+```bash
+if [ "$(uname -s)" = "Darwin" ]; then
+  for f in "$HOME/.sleep" "$HOME/.wakeup"; do
+    [ -f "$f" ] || continue
+    if grep -qF '# >>> cmuxO lid-watcher >>>' "$f"; then
+      sed -i '' '/# >>> cmuxO lid-watcher >>>/,/# <<< cmuxO lid-watcher <<</d' "$f"
+      # 파일이 shebang만 남고 사실상 비었으면 제거
+      if [ "$(grep -cvE '^\s*(#!|$)' "$f")" = "0" ]; then
+        rm -f "$f"
+      fi
+    fi
+  done
+  # 잔존 paused 플래그 정리
+  rm -f /tmp/cmux-paused.flag
+fi
+```
+
+### Step 4-C: 메모리 정리 (선택)
 
 ```bash
 if [ -d ~/.claude/memory/cmux ]; then

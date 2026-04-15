@@ -46,6 +46,10 @@ bash install.sh
 - Windows 바이너리: [scokeepa/cmuxw](https://github.com/scokeepa/cmuxw)
 - 강제 지정: `CMUX_BIN=/path/to/cmux-or-cmuxw`
 
+### Lid Auto-Pause (macOS)
+
+맥북 뚜껑을 닫으면 오케스트레이션이 자동 일시중지되고, 다시 열면 재개됩니다. `install.sh`가 필요 시 `sleepwatcher`를 설치하고 `~/.sleep`/`~/.wakeup`에 마커 블록으로 훅을 심어 `/tmp/cmux-paused.flag`를 토글합니다. 사용자가 직접 작성한 훅 내용은 보존됩니다. `/cmux-uninstall`로 깔끔히 제거.
+
 ---
 
 ## 문서

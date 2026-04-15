@@ -324,6 +324,70 @@ SHIMEOF
   echo ""
 fi
 
+# ─── macOS Lid Auto-Pause (SleepWatcher 연동) ──────
+
+if [ "$OS_TYPE" = "macos" ]; then
+  echo "[+] macOS Lid Auto-Pause 설정 (뚜껑 닫힘 → 자동 일시중지)..."
+
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "  ⚠ Homebrew 없음. Lid Auto-Pause 스킵 (수동 설치: brew install sleepwatcher)"
+  else
+    # 1) sleepwatcher 설치 (멱등)
+    if ! brew list sleepwatcher >/dev/null 2>&1; then
+      echo "  sleepwatcher 설치 중..."
+      if brew install sleepwatcher >/dev/null 2>&1; then
+        echo "  ✓ sleepwatcher 설치 완료"
+      else
+        echo "  ⚠ sleepwatcher 설치 실패. Lid Auto-Pause 스킵"
+      fi
+    else
+      echo "  ✓ sleepwatcher 이미 설치됨"
+    fi
+
+    if command -v sleepwatcher >/dev/null 2>&1 || [ -x /opt/homebrew/sbin/sleepwatcher ] || [ -x /usr/local/sbin/sleepwatcher ]; then
+      # 2) 훅 파일 생성 (사용자 기존 내용 보존, 마커 블록으로 멱등 관리)
+      BEGIN_MARK='# >>> cmuxO lid-watcher >>>'
+      END_MARK='# <<< cmuxO lid-watcher <<<'
+
+      install_hook_block() {
+        local file="$1"
+        local cmd="$2"
+        # 파일 없으면 shebang으로 시작
+        if [ ! -f "$file" ]; then
+          echo '#!/bin/bash' > "$file"
+        fi
+        # 기존 cmuxO 블록 제거 (마커 between, 주변 빈 줄도)
+        if grep -qF "$BEGIN_MARK" "$file"; then
+          # macOS sed in-place: 빈 확장자 요구
+          sed -i '' "/$BEGIN_MARK/,/$END_MARK/d" "$file"
+        fi
+        # 새 블록 append
+        {
+          echo ""
+          echo "$BEGIN_MARK"
+          echo "# cmuxO auto-pause hook. Safe to remove via /cmux-uninstall."
+          echo "$cmd"
+          echo "$END_MARK"
+        } >> "$file"
+        chmod +x "$file"
+      }
+
+      install_hook_block "$HOME/.sleep"  'touch /tmp/cmux-paused.flag 2>/dev/null || true'
+      install_hook_block "$HOME/.wakeup" 'rm -f /tmp/cmux-paused.flag 2>/dev/null || true'
+      echo "  ✓ ~/.sleep + ~/.wakeup 훅 설치"
+
+      # 3) 서비스 시작 (이미 실행 중이면 restart로 훅 재로드)
+      if brew services list 2>/dev/null | grep -q "^sleepwatcher.*started"; then
+        brew services restart sleepwatcher >/dev/null 2>&1 && echo "  ✓ sleepwatcher 재시작 (훅 재로드)"
+      else
+        brew services start sleepwatcher >/dev/null 2>&1 && echo "  ✓ sleepwatcher 서비스 시작"
+      fi
+      echo "  → 뚜껑 닫으면 /tmp/cmux-paused.flag 생성, 열면 제거됨"
+    fi
+  fi
+  echo ""
+fi
+
 echo ""
 echo "  ===================================================="
 echo "   설치 완료!"

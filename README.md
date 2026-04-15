@@ -336,6 +336,10 @@ Runs on macOS, Windows, Linux, and WSL.
 - Auto-starts with `/cmux-start` via Unix socket (`/tmp/cmux-compat.sock`)
 - Falls back to inline `python3` if daemon is unavailable
 
+### Lid Auto-Pause (macOS)
+
+Closing the MacBook lid auto-pauses the orchestration; opening it resumes. Powered by `sleepwatcher` (installed on demand by `install.sh`) which hooks macOS pre-sleep events and toggles `/tmp/cmux-paused.flag`. Existing `~/.sleep`/`~/.wakeup` content is preserved — cmuxO only manages its own marker block. Removed cleanly by `/cmux-uninstall`.
+
 ---
 
 ## Security
