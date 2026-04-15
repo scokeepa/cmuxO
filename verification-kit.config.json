@@ -1,0 +1,6 @@
+{
+  "reportsDir": "plans",
+  "reportPattern": "-verification-report\\.md$",
+  "legacyMarker": "<!-- legacy-verification-report: pre-5-section format -->",
+  "baseBranch": "main"
+}

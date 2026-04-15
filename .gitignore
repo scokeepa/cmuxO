@@ -5,3 +5,7 @@ __pycache__/
 *.swo
 *~
 .env
+
+# Node (leceipts artifact gate)
+node_modules/
+package-lock.json

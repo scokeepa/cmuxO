@@ -40,3 +40,20 @@ python3 -m pytest tests/ -v
 - `ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])` — 테스트 직접 seeding 경로의 CoreML provider 우회
 
 근거: mempalace `tests/conftest.py` + `mempalace/__init__.py` 패턴.
+
+## Verification Report Gate (leceipts)
+
+code change를 포함하는 작업은 `plans/`에 `-verification-report.md`
+형식의 보고서를 생성한다. 5-section 구조(Root cause / Change /
+Recurrence prevention / Verification / Remaining risk)를 자동 검증한다.
+
+```bash
+npm install                                        # 최초 1회
+npm run leceipts:check                             # main에 없는 새 보고서만
+npm run leceipts:check:all                         # 전체 재검사
+npm run leceipts:check:file plans/<file>.md        # 특정 파일
+```
+
+runtime checker(`cmux-orchestrator/scripts/leceipts-checker.py`)는 세션 응답 포맷을 게이트한다. 책임이 다르므로 두 checker는 공존한다.
+
+출처: `scripts/leceipts/README.md` (upstream: 0oooooooo0/leceipts MIT)

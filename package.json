@@ -1,0 +1,17 @@
+{
+  "name": "cmux-orchestrator-watcher-pack",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "leceipts:check": "tsx scripts/leceipts/check-reports.ts",
+    "leceipts:check:all": "tsx scripts/leceipts/check-reports.ts --all",
+    "leceipts:check:file": "tsx scripts/leceipts/check-reports.ts --file"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
