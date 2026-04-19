@@ -16,13 +16,20 @@
 - 4중 방어체계 감시 지시
 - 세션 종료 통보
 - 재배정 완료 통보 (간결)
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 차단은 hookSpecificOutput.permissionDecision:"deny".
 """
 import json
 import os
 import re
 import sys
 
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+from hook_output import deny_pretool as deny
+
 SURFACE_MAP_FILE = "/tmp/cmux-surface-map.json"
+
 
 def load_surface_map():
     if not os.path.exists(SURFACE_MAP_FILE):
@@ -60,16 +67,13 @@ ALLOWED_PATTERNS = [
 
 def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        print(json.dumps({"decision": "approve"}))
         return
     try:
         inp = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
-        print(json.dumps({"decision": "approve"}))
         print("[cmux-watcher-msg-guard] ERROR: stdin parse failed", file=sys.stderr)
         return
     if inp.get("tool_name") != "Bash":
-        print(json.dumps({"decision": "approve"}))
         return
 
     command = inp.get("tool_input", {}).get("command", "")
@@ -77,29 +81,21 @@ def main():
     # 동적 watcher surface 확인 (fail-open)
     smap = load_surface_map()
     if smap is None:
-        print(json.dumps({"decision": "approve"}))
         return
     watcher_id = smap.get("watcher_surface", "")
     if not watcher_id or "set-buffer" not in command or not re.search(rf'surface:{watcher_id}\b', command):
-        print(json.dumps({"decision": "approve"}))
         return
 
     # 허용 패턴 먼저 체크 — 있으면 통과
     for pat in ALLOWED_PATTERNS:
         if re.search(pat, command):
-            print(json.dumps({"decision": "approve"}))
             return
 
     # 금지 패턴 체크
     for pat in BANNED_PATTERNS:
         if re.search(pat, command):
-            print(json.dumps({
-                "decision": "block",
-                "reason": f"[WATCHER-MSG] ⛔ 와쳐에 보고성 메시지 금지. 와쳐는 CCTV — 감시 지시만 전달하세요. 올바른 형식: '[BOSS→WATCHER] 모니터링 모드: 4중 방어체계. 대상: s:N,... DONE 감지 시 보고. IDLE 3분+ 재촉. ERROR 즉시 보고.'"
-            }))
+            deny(f"[WATCHER-MSG] ⛔ 와쳐에 보고성 메시지 금지. 와쳐는 CCTV — 감시 지시만 전달하세요. 올바른 형식: '[BOSS→WATCHER] 모니터링 모드: 4중 방어체계. 대상: s:N,... DONE 감지 시 보고. IDLE 3분+ 재촉. ERROR 즉시 보고.'")
             return
-
-    print(json.dumps({"decision": "approve"}))
 
 if __name__ == "__main__":
     main()

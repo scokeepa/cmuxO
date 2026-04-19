@@ -18,6 +18,10 @@ dispatch → verify → commit 순서를 물리적으로 강제한다.
   IDLE → COMMITTED (디스패치 없이 커밋 금지)
   DISPATCHED → COMMITTED (검증 없이 커밋 금지)
   IDLE → COLLECTING (디스패치 없이 수집 금지)
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 차단은 hookSpecificOutput.permissionDecision:"deny",
+경고성 통과는 systemMessage(최상위 유효 키)로 전달.
 """
 import json
 import os
@@ -27,10 +31,12 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import write_json_atomic, is_boss_surface
+from hook_output import deny_pretool as deny, warn
 from leceipts_validator import is_git_commit
 
 STATE_FILE = "/tmp/cmux-workflow-state.json"
 SURFACE_MAP_FILE = "/tmp/cmux-surface-map.json"
+
 
 def load_surface_map():
     if not os.path.exists(SURFACE_MAP_FILE):
@@ -106,17 +112,15 @@ def detect_action(command, tool_name, tool_input):
 
 def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        print(json.dumps({"decision": "approve"}))
         return
     # Boss surface에서만 워크플로우 규율 적용. 다른 세션은 자유.
     if not is_boss_surface():
-        print(json.dumps({"decision": "approve"}))
         return
     try:
         inp = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
-        print(json.dumps({"decision": "block", "reason": "[HOOK-ERROR] stdin parse failed. Blocked for safety."}))
-        print(f"[cmux-workflow-state-machine] ERROR: stdin parse failed", file=sys.stderr)
+        deny("[HOOK-ERROR] stdin parse failed. Blocked for safety.")
+        print("[cmux-workflow-state-machine] ERROR: stdin parse failed", file=sys.stderr)
         return
     tool_name = inp.get("tool_name", "")
     tool_input = inp.get("tool_input", {})
@@ -129,7 +133,6 @@ def main():
 
     if action is None:
         # Neutral action — always allow
-        print(json.dumps({"decision": "approve"}))
         return
 
     # Map action to target state
@@ -142,7 +145,6 @@ def main():
 
     target = action_to_state.get(action)
     if not target:
-        print(json.dumps({"decision": "approve"}))
         return
 
     # Check if transition is valid
@@ -152,22 +154,15 @@ def main():
         if action == "DISPATCH":
             state_data["dispatch_count"] = state_data.get("dispatch_count", 0) + 1
         save_state(state_data)
-        print(json.dumps({"decision": "approve"}))
     else:
         # Invalid transition — but only BLOCK for commit violations
         if action == "COMMIT" and current not in ("VERIFIED", "COMMITTED"):
-            print(json.dumps({
-                "decision": "block",
-                "reason": f"[STATE-MACHINE] ⛔ 현재 상태 {current}에서 COMMIT 불가. 검증(VERIFIED) 상태에서만 커밋 가능. 먼저 결과 수집(read-screen) → Sonnet 검증(Agent) 실행하세요."
-            }))
+            deny(f"[STATE-MACHINE] ⛔ 현재 상태 {current}에서 COMMIT 불가. 검증(VERIFIED) 상태에서만 커밋 가능. 먼저 결과 수집(read-screen) → Sonnet 검증(Agent) 실행하세요.")
             return
         # For other transitions, allow but warn (soft enforcement)
         state_data["state"] = target
         save_state(state_data)
-        print(json.dumps({
-            "decision": "approve",
-            "systemMessage": f"[STATE-MACHINE] ⚠️ {current}→{target} 전이는 권장 순서가 아닙니다. 올바른 순서: {' → '.join(valid_targets)}"
-        }))
+        warn(f"[STATE-MACHINE] ⚠️ {current}→{target} 전이는 권장 순서가 아닙니다. 올바른 순서: {' → '.join(valid_targets)}")
 
 if __name__ == "__main__":
     main()

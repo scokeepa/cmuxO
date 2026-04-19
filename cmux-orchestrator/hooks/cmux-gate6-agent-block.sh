@@ -2,17 +2,21 @@
 # cmux-gate6-agent-block.sh — PreToolUse hook (GATE 6 L0화)
 # IDLE cmux surface가 있으면 Agent(Explore/impl-worker/search-worker 등) 물리 차단
 # → cmux send로 해당 surface에 위임 강제
+#
+# 출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907)
+#   - 통과: exit 0 + 빈 stdout
+#   - 차단: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"..."}}
 
 # 오케스트레이션 모드 아니면 패스
-[ -f /tmp/cmux-orch-enabled ] || { echo '{"decision":"allow"}'; exit 0; }
+[ -f /tmp/cmux-orch-enabled ] || exit 0
 # cmux 환경 아니면 패스
-[ -n "${CMUX_WORKSPACE_ID:-}" ] || { echo '{"decision":"allow"}'; exit 0; }
+[ -n "${CMUX_WORKSPACE_ID:-}" ] || exit 0
 
 PAYLOAD=$(cat)
 TOOL_NAME=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('tool_name',''))" 2>/dev/null)
 
 # Agent 도구만 검사
-[ "$TOOL_NAME" = "Agent" ] || { echo '{"decision":"allow"}'; exit 0; }
+[ "$TOOL_NAME" = "Agent" ] || exit 0
 
 # 팀장(부서) surface는 GATE 6 면제 — Boss surface에서만 차단
 # 팀장은 Agent로 탐색/팀원 생성이 필요하므로 차단하면 안 됨
@@ -25,7 +29,7 @@ roles = json.load(open('$ROLES_FILE'))
 boss_sid = roles.get('boss',{}).get('surface','')
 print('yes' if '$CURRENT_SID' == boss_sid else 'no')
 " 2>/dev/null)
-    [ "$IS_BOSS" != "yes" ] && { echo '{"decision":"allow"}'; exit 0; }
+    [ "$IS_BOSS" != "yes" ] && exit 0
 fi
 
 AGENT_TYPE=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('tool_input',{}).get('subagent_type',''))" 2>/dev/null)
@@ -33,7 +37,7 @@ AGENT_TYPE=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys
 # 허용 에이전트 (코드리뷰, cmux 전용)
 ALLOWED="code-reviewer code-reviewer-pro cmux-git cmux-security cmux-reviewer momus"
 for a in $ALLOWED; do
-    [ "$AGENT_TYPE" = "$a" ] && { echo '{"decision":"allow"}'; exit 0; }
+    [ "$AGENT_TYPE" = "$a" ] && exit 0
 done
 
 # IDLE surface 확인 (eagle 또는 scan 캐시)
@@ -83,11 +87,17 @@ print(len(idle_surfs))
 " 2>/dev/null)
 fi
 
-[ "${IDLE_COUNT:-0}" -eq 0 ] && { echo '{"decision":"allow"}'; exit 0; }
+[ "${IDLE_COUNT:-0}" -eq 0 ] && exit 0
 
 # IDLE surface가 있으면 차단
 python3 -c "
 import json
 msg = 'GATE 6 (L0): IDLE surface ${IDLE_COUNT}개 존재. Agent(${AGENT_TYPE}) 차단. cmux send로 IDLE surface에 위임하세요.'
-print(json.dumps({'decision': 'block', 'reason': msg}, ensure_ascii=False))
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': msg
+    }
+}, ensure_ascii=False))
 "

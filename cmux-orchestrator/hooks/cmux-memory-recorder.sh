@@ -7,6 +7,9 @@
 #
 # 카테고리: SILENT_EXIT — 빈 stdin/에러 시 stdout 없이 exit 0
 # 5MB 초과 시 기록 스킵 (drain에서 rotation 처리)
+#
+# 출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+# pass-through는 exit 0 + 빈 stdout.
 
 # 1. 모드 게이트
 [ -f /tmp/cmux-orch-enabled ] || exit 0
@@ -23,10 +26,10 @@ try:
     print(d.get('tool_input',{}).get('command',''))
 except: print('')
 " 2>/dev/null)
-[ -z "$COMMAND" ] && { echo '{}'; exit 0; }
+[ -z "$COMMAND" ] && exit 0
 
 # 4. allowlist 매칭 (dispatch + 부서 관리 + 제어탑)
-echo "$COMMAND" | grep -qE 'cmux (send|set-buffer|paste-buffer|create-workspace|close-workspace|reorder-workspace)' || { echo '{}'; exit 0; }
+echo "$COMMAND" | grep -qE 'cmux (send|set-buffer|paste-buffer|create-workspace|close-workspace|reorder-workspace)' || exit 0
 
 # 5. 메모리 디렉토리 확인
 MEMORY_DIR="$HOME/.claude/memory/cmux"
@@ -38,7 +41,7 @@ if [ -f "$JOURNAL" ]; then
   SIZE=$(stat -f%z "$JOURNAL" 2>/dev/null || stat -c%s "$JOURNAL" 2>/dev/null || echo 0)
   if [ "$SIZE" -gt 5242880 ]; then
     echo "[cmux-memory-recorder] WARN: journal > 5MB, skipping. Run: bash agent-memory.sh drain" >&2
-    echo '{}'; exit 0
+    exit 0
   fi
 fi
 
@@ -67,4 +70,4 @@ entry = {
 print(json.dumps(entry, ensure_ascii=False))
 " "$COMMAND" >> "$JOURNAL" 2>/dev/null
 
-echo '{}'
+exit 0

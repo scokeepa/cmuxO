@@ -3,37 +3,42 @@
 # cmux read-screen/send/send-key/paste-buffer에 --workspace 누락 시 자동 주입
 # 같은 workspace면 그냥 허용, 다른 workspace면 --workspace 자동 추가
 # workspace 해석 실패 시에만 차단 (fallback)
+#
+# 출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907)
+#   - 통과: exit 0 + 빈 stdout
+#   - 차단: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"..."}}
+#   - 치환: {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"command":"..."}}}
 
 # 오케스트레이션 모드 아니면 패스
-[ -f /tmp/cmux-orch-enabled ] || { echo '{"decision":"allow"}'; exit 0; }
+[ -f /tmp/cmux-orch-enabled ] || exit 0
 # cmux 환경 아니면 패스
-[ -n "${CMUX_WORKSPACE_ID:-}" ] || { echo '{"decision":"allow"}'; exit 0; }
+[ -n "${CMUX_WORKSPACE_ID:-}" ] || exit 0
 
 # stdin에서 hook payload 읽기
 PAYLOAD=$(cat)
 
 TOOL_NAME=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('tool_name',''))" 2>/dev/null)
-[ "$TOOL_NAME" = "Bash" ] || { echo '{"decision":"allow"}'; exit 0; }
+[ "$TOOL_NAME" = "Bash" ] || exit 0
 
 COMMAND=$(echo "$PAYLOAD" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('tool_input',{}).get('command',''))" 2>/dev/null)
 
 # cmux read-screen 또는 cmux send/send-key/paste-buffer가 아니면 패스
-echo "$COMMAND" | grep -qE "cmux (read-screen|capture-pane|send |send-key |paste-buffer )" || { echo '{"decision":"allow"}'; exit 0; }
+echo "$COMMAND" | grep -qE "cmux (read-screen|capture-pane|send |send-key |paste-buffer )" || exit 0
 
 # --workspace가 이미 포함되어 있으면 OK
-echo "$COMMAND" | grep -q "\-\-workspace" && { echo '{"decision":"allow"}'; exit 0; }
+echo "$COMMAND" | grep -q "\-\-workspace" && exit 0
 
 # read-surface.sh를 사용하고 있으면 OK (이미 workspace 자동 해석)
-echo "$COMMAND" | grep -q "read-surface.sh" && { echo '{"decision":"allow"}'; exit 0; }
+echo "$COMMAND" | grep -q "read-surface.sh" && exit 0
 
 # detect-surface-models.py를 사용하고 있으면 OK
-echo "$COMMAND" | grep -q "detect-surface-models" && { echo '{"decision":"allow"}'; exit 0; }
+echo "$COMMAND" | grep -q "detect-surface-models" && exit 0
 
 # target surface 추출
 TARGET_SF=$(echo "$COMMAND" | grep -oE 'surface:[0-9]+' | head -1)
 
 # surface가 없으면 (cmux tree --all 같은 명령) 그냥 허용
-[ -z "$TARGET_SF" ] && { echo '{"decision":"allow"}'; exit 0; }
+[ -z "$TARGET_SF" ] && exit 0
 
 # === workspace 해석 함수 ===
 function_resolve_workspace() {
@@ -88,15 +93,22 @@ TARGET_WS=$(function_resolve_workspace "$TARGET_SF")
 if [ -z "$TARGET_WS" ]; then
     # workspace 해석 실패 시에만 차단 (fallback)
     ORCH_DIR="$HOME/.claude/skills/cmux-orchestrator"
-    cat << JSON
-{"decision":"block","reason":"cmux --workspace 자동 주입 실패: $TARGET_SF 의 workspace를 해석할 수 없음. cmux-surface-scan.json 및 cmux tree --all 모두 실패.\n대안: bash $ORCH_DIR/scripts/read-surface.sh N --lines 20"}
-JSON
+    REASON="cmux --workspace 자동 주입 실패: $TARGET_SF 의 workspace를 해석할 수 없음. cmux-surface-scan.json 및 cmux tree --all 모두 실패.\n대안: bash $ORCH_DIR/scripts/read-surface.sh N --lines 20"
+    REASON="$REASON" python3 -c "
+import json, os
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ.get('REASON', '')
+    }
+}, ensure_ascii=False))
+"
     exit 0
 fi
 
 # 같은 workspace면 그냥 허용 (workspace 추가 불필요)
 if [ "$TARGET_WS" = "$MY_WS" ]; then
-    echo '{"decision":"allow"}'
     exit 0
 fi
 
@@ -122,22 +134,31 @@ print(result)
 
 if [ -z "$MODIFIED_COMMAND" ] || [ "$MODIFIED_COMMAND" = "$COMMAND" ]; then
     # 수정 실패 시 차단
-    cat << JSON
-{"decision":"block","reason":"cmux --workspace 자동 주입 실패: 명령어 파싱 오류. --workspace $TARGET_WS 를 수동 추가하세요."}
-JSON
+    REASON="cmux --workspace 자동 주입 실패: 명령어 파싱 오류. --workspace $TARGET_WS 를 수동 추가하세요."
+    REASON="$REASON" python3 -c "
+import json, os
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ.get('REASON', '')
+    }
+}, ensure_ascii=False))
+"
     exit 0
 fi
 
-# tool_input 수정하여 반환 — allow + 수정된 command
+# tool_input 수정하여 반환 — allow + updatedInput
 # 환경변수로 전달하여 셸 이스케이프 문제 방지
 CMUX_MODIFIED_CMD="$MODIFIED_COMMAND" python3 -c "
 import json, os
 cmd = os.environ.get('CMUX_MODIFIED_CMD', '')
 result = {
-    'decision': 'allow',
-    'tool_input': {
-        'command': cmd
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'updatedInput': {'command': cmd}
     }
 }
 print(json.dumps(result, ensure_ascii=False))
-" 2>/dev/null || echo '{"decision":"allow"}'
+" 2>/dev/null || exit 0

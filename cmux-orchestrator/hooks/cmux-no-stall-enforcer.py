@@ -7,6 +7,9 @@
 3. 와쳐 완료 알림 후 결과 미수집
 
 /tmp/cmux-orchestration-state.json 으로 상태 추적.
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 차단은 hookSpecificOutput.permissionDecision:"deny".
 """
 import json
 import os
@@ -16,8 +19,10 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import write_json_atomic, is_boss_surface
+from hook_output import deny_pretool as deny
 
 STATE_FILE = "/tmp/cmux-orchestration-state.json"
+
 
 def load_state():
     if os.path.exists(STATE_FILE):
@@ -38,17 +43,15 @@ def save_state(data):
 
 def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        print(json.dumps({"decision": "approve"}))
         return
     # Boss surface에서만 stall 방지 강제. 다른 세션은 자유.
     if not is_boss_surface():
-        print(json.dumps({"decision": "approve"}))
         return
     try:
         inp = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
-        print(json.dumps({"decision": "block", "reason": "[HOOK-ERROR] stdin parse failed. Blocked for safety."}))
-        print(f"[cmux-no-stall-enforcer] ERROR: stdin parse failed", file=sys.stderr)
+        deny("[HOOK-ERROR] stdin parse failed. Blocked for safety.")
+        print("[cmux-no-stall-enforcer] ERROR: stdin parse failed", file=sys.stderr)
         return
     tool_name = inp.get("tool_name", "")
     tool_input = inp.get("tool_input", {})
@@ -108,13 +111,8 @@ def main():
     # === 판정 ===
     if violations:
         msg = " | ".join(violations)
-        print(json.dumps({
-            "decision": "block",
-            "reason": f"[NO-STALL] ⛔ 멈춤 감지: {msg}. 즉시 (1) Sonnet 검증 투입 (2) IDLE surface 재배정 하세요."
-        }))
+        deny(f"[NO-STALL] ⛔ 멈춤 감지: {msg}. 즉시 (1) Sonnet 검증 투입 (2) IDLE surface 재배정 하세요.")
         return
-
-    print(json.dumps({"decision": "approve"}))
 
 if __name__ == "__main__":
     main()

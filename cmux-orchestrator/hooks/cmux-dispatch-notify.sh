@@ -1,6 +1,9 @@
 #!/bin/bash
 # cmux-dispatch-notify.sh — cmux 디스패치 시 와쳐 자동 알림
 # PostToolUse:Bash hook — cmux send/set-buffer 감지 시 display-message
+#
+# 출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+# pass-through는 exit 0 + 빈 stdout (PostToolUse는 차단 불가, 부가 정보만 주입).
 
 # 오케스트레이션 모드 아니면 패스
 [ -f /tmp/cmux-orch-enabled ] || exit 0
@@ -19,5 +22,5 @@ if echo "$COMMAND" | grep -qE 'cmux (send|set-buffer|paste-buffer)'; then
   fi
 fi
 
-# 항상 approve (차단하지 않음)
-echo '{"decision":"approve"}'
+# pass-through (exit 0 + 빈 stdout)
+exit 0

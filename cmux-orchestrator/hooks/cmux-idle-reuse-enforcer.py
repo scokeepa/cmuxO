@@ -6,6 +6,10 @@
 동작:
 1. cmux rename-tab "✅" 감지 → /tmp/cmux-idle-tracker.json에 완료 시각 기록
 2. 3분 후에도 해당 surface에 새 set-buffer가 없으면 → 경고 주입
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 정보 주입은
+hookSpecificOutput.additionalContext (PostToolUse).
 """
 import json
 import os
@@ -15,9 +19,11 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import write_json_atomic
+from hook_output import inject_posttool_context as inject_context
 
 TRACKER_FILE = "/tmp/cmux-idle-tracker.json"
 IDLE_THRESHOLD_SECONDS = 180  # 3분
+
 
 def load_tracker():
     if os.path.exists(TRACKER_FILE):
@@ -33,12 +39,12 @@ def save_tracker(data):
 
 def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        sys.exit(0)
+        return
     try:
         inp = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
         print("[cmux-idle-reuse-enforcer] ERROR: stdin parse failed", file=sys.stderr)
-        sys.exit(0)
+        return
     tool_input = inp.get("tool_input", {})
     command = tool_input.get("command", "")
 
@@ -74,13 +80,10 @@ def main():
 
     if len(idle_surfaces) >= 3:
         surfaces_str = ", ".join(idle_surfaces)
-        print(json.dumps({
-            "decision": "approve",
-            "additionalContext": f"[IDLE-ENFORCER] ⚠️ {surfaces_str} 가 {IDLE_THRESHOLD_SECONDS//60}분+ IDLE. 즉시 새 작업 배정하세요. (규칙 15 위반)"
-        }))
-        return
-
-    print(json.dumps({"decision": "approve"}))
+        inject_context(
+            f"[IDLE-ENFORCER] ⚠️ {surfaces_str} 가 {IDLE_THRESHOLD_SECONDS//60}분+ IDLE. "
+            "즉시 새 작업 배정하세요. (규칙 15 위반)"
+        )
 
 if __name__ == "__main__":
     main()

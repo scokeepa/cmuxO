@@ -9,12 +9,18 @@
 1. 플랜 파일 존재 (없으면 BLOCK)
 2. 5관점 순환검증 — 각 섹션 헤더(### N. 관점명) + 최소 내용(30자) + 판정: 키워드
 3. 시뮬레이션 결과 — 섹션 존재 + TC 테이블/결과 + ALL PASS verdict (FAIL 시 BLOCK)
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 차단은 hookSpecificOutput.permissionDecision:"deny".
 """
 import json
 import os
 import re
 import sys
 import glob
+
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+from hook_output import deny_pretool as deny
 
 PLANS_DIR = os.path.expanduser("~/.claude/plans")
 
@@ -51,18 +57,14 @@ def _extract_section_content(content, header_match):
 
 def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        print(json.dumps({"decision": "approve"}))
         return
 
     plans = glob.glob(os.path.join(PLANS_DIR, "*.md"))
     if not plans:
-        print(json.dumps({
-            "decision": "block",
-            "reason": (
-                "[PLAN-QUALITY-GATE] 플랜 파일이 없습니다.\n"
-                "~/.claude/plans/에 플랜 파일을 작성한 후 다시 시도하세요."
-            )
-        }))
+        deny(
+            "[PLAN-QUALITY-GATE] 플랜 파일이 없습니다.\n"
+            "~/.claude/plans/에 플랜 파일을 작성한 후 다시 시도하세요."
+        )
         return
 
     latest = max(plans, key=os.path.getmtime)
@@ -118,17 +120,12 @@ def main():
         if any("[시뮬레이션]" in i for i in issues):
             phase_summary.append("시뮬레이션 미완료")
 
-        print(json.dumps({
-            "decision": "block",
-            "reason": (
-                f"[PLAN-QUALITY-GATE] 플랜 수립 절차 미준수: {' + '.join(phase_summary)}\n"
-                f"필수 절차: 검증(5관점) → 고도화(판정 기록) → 시뮬레이션(TC 실행 + ALL PASS)\n"
-                + "\n".join(f"  - {i}" for i in issues)
-                + f"\n\n플랜 파일({os.path.basename(latest)})을 수정한 후 다시 시도하세요."
-            )
-        }))
-    else:
-        print(json.dumps({"decision": "approve"}))
+        deny(
+            f"[PLAN-QUALITY-GATE] 플랜 수립 절차 미준수: {' + '.join(phase_summary)}\n"
+            f"필수 절차: 검증(5관점) → 고도화(판정 기록) → 시뮬레이션(TC 실행 + ALL PASS)\n"
+            + "\n".join(f"  - {i}" for i in issues)
+            + f"\n\n플랜 파일({os.path.basename(latest)})을 수정한 후 다시 시도하세요."
+        )
 
 
 if __name__ == "__main__":

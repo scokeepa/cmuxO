@@ -10,6 +10,10 @@
 
 이 Hook 자체는 L2(경고)이지만, 반복 위반을 감지하여
 사용자/AI에게 L0 Hook 생성을 촉구한다.
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 정보 주입은
+hookSpecificOutput.additionalContext (PostToolUse).
 """
 import json
 import os
@@ -18,10 +22,12 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import write_json_atomic
+from hook_output import inject_posttool_context as inject_context
 
 TRACKER_FILE = "/tmp/cmux-violation-tracker.json"
 EXPIRY_HOURS = 72
 ESCALATION_THRESHOLD = 3  # 3회 위반 시 에스컬레이션
+
 
 def load_tracker():
     if os.path.exists(TRACKER_FILE):
@@ -64,12 +70,12 @@ def classify_violation(tool_result_str):
 
 def main():
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        sys.exit(0)
+        return
     try:
         inp = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
         print("[cmux-enforcement-escalator] ERROR: stdin parse failed", file=sys.stderr)
-        sys.exit(0)
+        return
     tool_result = inp.get("tool_result", {})
 
     # Extract text from result
@@ -81,7 +87,6 @@ def main():
 
     # Check if this contains a hook warning/block
     if not any(marker in result_str for marker in ["⛔", "⚠️", "BLOCK", "WARNING", "ENFORCER"]):
-        print(json.dumps({}))
         return
 
     tracker = load_tracker()
@@ -89,7 +94,6 @@ def main():
 
     pattern = classify_violation(result_str)
     if not pattern:
-        print(json.dumps({}))
         return
 
     # Record violation
@@ -104,21 +108,18 @@ def main():
     if count >= ESCALATION_THRESHOLD and pattern not in tracker["escalated"]:
         tracker["escalated"].append(pattern)
         save_tracker(tracker)
-
-        print(json.dumps({
-            "decision": "approve",
-            "reason": f"[ESCALATION] 🔴 '{pattern}' 위반 {count}회 누적. L3 규칙으로는 부족합니다. L0 PreToolUse Hook으로 물리적 차단을 강화하세요. /sdd 자가개선 실행을 권장합니다."
-        }))
+        inject_context(
+            f"[ESCALATION] 🔴 '{pattern}' 위반 {count}회 누적. L3 규칙으로는 부족합니다. "
+            "L0 PreToolUse Hook으로 물리적 차단을 강화하세요. /sdd 자가개선 실행을 권장합니다."
+        )
         return
 
     if count >= 2:
-        print(json.dumps({
-            "decision": "approve",
-            "reason": f"[ESCALATION-WARN] ⚠️ '{pattern}' 위반 {count}/{ESCALATION_THRESHOLD}회. {ESCALATION_THRESHOLD}회 도달 시 L0 승격 권고."
-        }))
+        inject_context(
+            f"[ESCALATION-WARN] ⚠️ '{pattern}' 위반 {count}/{ESCALATION_THRESHOLD}회. "
+            f"{ESCALATION_THRESHOLD}회 도달 시 L0 승격 권고."
+        )
         return
-
-    print(json.dumps({}))
 
 if __name__ == "__main__":
     main()

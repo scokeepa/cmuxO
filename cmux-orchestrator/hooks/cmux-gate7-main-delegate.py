@@ -9,6 +9,9 @@ GATE 6이 Agent 도구만 차단하는 것을 보완하여, Read/Edit/Grep/Glob/
 - cmux 명령어 실행 (Bash)
 - 오케스트레이션 비활성 상태
 - Boss가 아닌 surface
+
+출력 스키마: Claude Code SyncHookJSONOutputSchema (coreSchemas.ts:907).
+pass-through는 exit 0 + 빈 stdout, 차단은 hookSpecificOutput.permissionDecision:"deny".
 """
 import json
 import os
@@ -17,6 +20,7 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import load_json_safe, is_boss_surface
+from hook_output import deny_pretool as deny
 
 # 차단 대상 도구
 BLOCKED_TOOLS = {"Read", "Edit", "Grep", "Glob", "Write"}
@@ -79,18 +83,15 @@ def is_allowed_exception(tool_name, tool_input):
 def main():
     # 오케스트레이션 모드 아니면 패스
     if not os.path.exists("/tmp/cmux-orch-enabled"):
-        print(json.dumps({"decision": "approve"}))
         return
 
     # Boss surface가 아니면 패스
     if not is_boss_surface():
-        print(json.dumps({"decision": "approve"}))
         return
 
     try:
         inp = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
-        print(json.dumps({"decision": "approve"}))
         return
 
     tool_name = inp.get("tool_name", "")
@@ -98,29 +99,25 @@ def main():
 
     # 차단 대상 도구가 아니면 패스
     if tool_name not in BLOCKED_TOOLS:
-        print(json.dumps({"decision": "approve"}))
         return
 
     # 허용 예외 확인
     if is_allowed_exception(tool_name, tool_input):
-        print(json.dumps({"decision": "approve"}))
         return
 
     # IDLE worker surface 확인
     idle_workers = get_idle_worker_surfaces()
     if not idle_workers:
         # IDLE worker가 없으면 직접 작업 허용
-        print(json.dumps({"decision": "approve"}))
         return
 
     # 차단
     idle_list = ", ".join([f"surface:{s}" for s in idle_workers])
-    msg = (
+    deny(
         f"GATE 7 (L0): IDLE worker {len(idle_workers)}개 존재 ({idle_list}). "
         f"{tool_name} 차단. 사장은 직접 작업 금지 — "
         f"cmux send로 IDLE surface에 위임하세요."
     )
-    print(json.dumps({"decision": "block", "reason": msg}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
