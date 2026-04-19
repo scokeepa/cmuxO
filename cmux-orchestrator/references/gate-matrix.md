@@ -22,7 +22,7 @@
 
 | Level | Meaning | Implementation |
 |-------|---------|---------------|
-| L0 BLOCK | Physical block via PreToolUse hook | Hook returns `{"decision":"block"}` |
-| L2 WARNING | Warning via PostToolUse systemMessage | Hook returns `{"systemMessage":"..."}` |
+| L0 BLOCK | Physical block via PreToolUse hook | Hook returns `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"..."}}` |
+| L2 WARNING | Warning via PostToolUse additionalContext | Hook returns `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"..."}}` |
 | L3 Policy | SKILL.md instruction only, no hook | AI follows written rule |
 | Auto | Runs automatically in scan cycle | watcher-scan.py logic |

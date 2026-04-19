@@ -13,32 +13,39 @@
 
 ## L0: 물리적 차단 (PreToolUse Hook)
 
-`gate-blocker.sh`가 PreToolUse 훅으로 등록됨.
+`gate-blocker.sh`는 독립 실행 스크립트로 존재하지만 현재 `settings.json`에는
+별도 등록되어 있지 않다. 실제 커밋 차단은 아래 표의 전용 훅들이 수행한다.
+`gate-blocker.sh`는 수동 호출 또는 통합 검증 용도로 유지되며, 출력은
+`hookSpecificOutput.permissionDecision` 스키마를 따른다.
 
 ### 차단 조건
 
 ```bash
-# WORKING surface 있으면 → {"decision":"block"} → 커밋 물리적 불가
-# speckit 미완료 태스크 있으면 → {"decision":"block"} → 커밋 물리적 불가
+# WORKING surface 있으면 → permissionDecision:"deny" → 커밋 물리적 불가
+# speckit 미완료 태스크 있으면 → permissionDecision:"deny" → 커밋 물리적 불가
 ```
 
 ### 등록 위치
 
-`settings.json` PreToolUse에 이미 등록 (영구)
+- 실제 커밋 게이트는 `cmux-completion-verifier.py`, `cmux-leceipts-gate.py` 등
+  `settings.json` PreToolUse:Bash에 등록된 전용 훅이 담당.
+- `gate-blocker.sh`는 통합 게이트의 참조 구현이며 별도 등록되지 않는다.
 
 ### 동작 방식
 
 ```bash
-# gate-blocker.sh 핵심 로직
+# gate-blocker.sh 핵심 로직 (hook_output.sh SSOT 사용)
+. "$HOME/.claude/skills/cmux-orchestrator/scripts/hook_output.sh"
+
 if git_status_shows_working_surfaces; then
-    echo '{"decision":"block","reason":"WORKING surface exists"}'
-    exit 1
+    hook_deny_pretool "WORKING surface exists"
+    exit 0
 fi
 if speckit_tracker_has_incomplete; then
-    echo '{"decision":"block","reason":"speckit tasks incomplete"}'
-    exit 1
+    hook_deny_pretool "speckit tasks incomplete"
+    exit 0
 fi
-echo '{"decision":"allow"}'
+# 통과 — 빈 stdout + exit 0 (decision:allow 는 enum 밖, 사용 금지)
 exit 0
 ```
 

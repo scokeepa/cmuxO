@@ -2,10 +2,23 @@
 # gate-blocker.sh — PreToolUse hook: WORKING surface 있을 때 커밋 차단
 #
 # Claude Code PreToolUse hook에서 실행.
-# git commit 시도 시 WORKING surface가 있으면 block decision 반환.
+# git commit 시도 시 WORKING surface가 있으면 deny decision 반환.
 #
 # stdin: {"tool_name":"Bash","tool_input":{"command":"git commit ..."}}
-# stdout: {"decision":"block","reason":"..."} 또는 빈 출력 (허용)
+# stdout (deny): SyncHookJSONOutputSchema — hookSpecificOutput.permissionDecision="deny"
+# stdout (pass): 빈 출력 + exit 0
+#
+# 출력 스키마 SSOT: cmux-orchestrator/scripts/hook_output.sh (coreSchemas.ts:907)
+
+# hook_output.sh SSOT 로드 (source 디렉토리 또는 설치 디렉토리)
+if [ -f "$HOME/.claude/skills/cmux-orchestrator/scripts/hook_output.sh" ]; then
+    . "$HOME/.claude/skills/cmux-orchestrator/scripts/hook_output.sh"
+elif [ -f "$(dirname "$0")/hook_output.sh" ]; then
+    . "$(dirname "$0")/hook_output.sh"
+else
+    echo "[gate-blocker] ERROR: hook_output.sh not found" >&2
+    exit 0
+fi
 
 # macOS 호환: timeout이 없으면 직접 실행
 if ! command -v timeout &>/dev/null; then
@@ -54,7 +67,7 @@ if pending:
 " 2>/dev/null)
 
     if [ -n "$variable_gate0_result" ]; then
-        echo "{\"decision\":\"block\",\"reason\":\"⛔ HARD GATE 0: 미수집 surface 있음 — $variable_gate0_result. 모든 디스패치 결과 수집 전 커밋 금지.\"}"
+        hook_deny_pretool "⛔ HARD GATE 0: 미수집 surface 있음 — $variable_gate0_result. 모든 디스패치 결과 수집 전 커밋 금지."
         exit 0
     fi
 fi
@@ -81,7 +94,7 @@ except Exception:
 " 2>/dev/null)
 
     if [ -n "$variable_blocking" ]; then
-        echo "{\"decision\":\"block\",\"reason\":\"⛔ GATE 1: 활성 surface 있음 — $variable_blocking. 커밋 전에 모든 surface 완료/처리 필수.\"}"
+        hook_deny_pretool "⛔ GATE 1: 활성 surface 있음 — $variable_blocking. 커밋 전에 모든 surface 완료/처리 필수."
         exit 0
     fi
 fi
@@ -111,7 +124,7 @@ else:
 " 2>/dev/null)
 
     if [ -n "$variable_review_missing" ]; then
-        echo "{\"decision\":\"block\",\"reason\":\"⛔ GATE 2: 코드리뷰 미완료 ($variable_review_missing). cmux surface 작업 후 반드시 검증 에이전트(code-reviewer) 실행 필수. 리뷰 통과 후 커밋 가능.\"}"
+        hook_deny_pretool "⛔ GATE 2: 코드리뷰 미완료 ($variable_review_missing). cmux surface 작업 후 반드시 검증 에이전트(code-reviewer) 실행 필수. 리뷰 통과 후 커밋 가능."
         exit 0
     fi
 fi
@@ -123,7 +136,7 @@ if [ -f "$variable_fsm_script" ] && [ -f "/tmp/cmux-surface-fsm.json" ]; then
     variable_fsm_exit=$?
 
     if [ "$variable_fsm_exit" -ne 0 ] && [ -n "$variable_unverified" ]; then
-        echo "{\"decision\":\"block\",\"reason\":\"⛔ GATE 3: FSM 미검증 surface 존재. $variable_unverified. DONE surface를 verify 후 커밋 가능 (python3 $variable_fsm_script verify surface:N).\"}"
+        hook_deny_pretool "⛔ GATE 3: FSM 미검증 surface 존재. $variable_unverified. DONE surface를 verify 후 커밋 가능 (python3 $variable_fsm_script verify surface:N)."
         exit 0
     fi
 fi
@@ -143,7 +156,7 @@ if inc:
 " 2>/dev/null)
 
     if [ -n "$variable_incomplete" ]; then
-        echo "{\"decision\":\"block\",\"reason\":\"⛔ GATE 5: speckit 미완료 태스크 $variable_incomplete. 재배정 후 완료해야 커밋 가능.\"}"
+        hook_deny_pretool "⛔ GATE 5: speckit 미완료 태스크 $variable_incomplete. 재배정 후 완료해야 커밋 가능."
         exit 0
     fi
 fi
