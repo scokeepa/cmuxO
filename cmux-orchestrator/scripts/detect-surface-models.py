@@ -18,6 +18,16 @@ THROTTLE_DELAY = 0.3
 ROLES_FILE = Path("/tmp/cmux-roles.json")
 SCAN_FILE = Path("/tmp/cmux-surface-scan.json")
 
+_SCRIPT_DIR = Path(__file__).parent.resolve()
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+try:
+    from cmux_paths import ane_tool_path
+except ImportError:
+    def ane_tool_path():
+        p = Path.home() / "Ai/System/11_Modules/ane-cli/ane_tool"
+        return p if p.exists() and os.access(p, os.X_OK) else None
+
 def run(cmd, timeout=10):
     try:
         if isinstance(cmd, str):
@@ -130,8 +140,8 @@ def parse_tree(tree_text):
 
 def vision_ocr_fallback(surf_ref, ws_ref):
     """Apple Vision OCR — ane_tool 사용 (외부 의존 없음, macOS 전용)"""
-    ane = os.path.expanduser("~/Ai/System/11_Modules/ane-cli/ane_tool")
-    if not os.path.exists(ane):
+    ane = ane_tool_path()
+    if ane is None:
         return None
     try:
         tmpimg = f"/tmp/cmux-vision-{surf_ref.replace(':','')}.png"
@@ -235,10 +245,10 @@ def main():
 
     # === 0. /cmux 미감지 + 와쳐 → 3단계 강제 감지 ===
     if not cmux_surfaces and not no_activate and caller_is_watcher:
-        ane_tool = os.path.expanduser("~/Ai/System/11_Modules/ane-cli/ane_tool")
+        ane_tool = ane_tool_path()
 
         # --- 단계 1: Apple Vision OCR 강제 시도 ---
-        if os.path.exists(ane_tool):
+        if ane_tool is not None:
             print("[VISION] read-screen 미감지 → Apple Vision OCR 강제 실행", file=sys.stderr)
             run("screencapture -x /tmp/cmux-vision-scan.png", timeout=5)
             vision_out = run(f"{ane_tool} ocr /tmp/cmux-vision-scan.png", timeout=15)

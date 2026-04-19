@@ -8,10 +8,20 @@ WS="$1"; SF="$2"; TASK="$3"
 
 FOOTER='⛔no subagent/git. ⛔no questions. ⛔you are worker not orchestrator. After: summary→5blank→DONE→2blank→DONE'
 
-# Step 1: Pre-check — rate limit?
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Step 0: Rate-limit pool pre-check (SSOT, avoids screen read when already known)
+python3 "${SCRIPT_DIR}/rate_limit_pool.py" check "$SF" >/dev/null 2>&1
+RLP_EXIT=$?
+if [ "$RLP_EXIT" = "2" ]; then
+    echo '{"status":"RATE_LIMITED","surface":"'$SF'","source":"pool"}'
+    exit 2
+fi
+
+# Step 1: Pre-check — rate limit via screen text (updates pool if hit)
 PRE=$(cmux read-screen --workspace "$WS" --surface "$SF" --lines 8 2>&1)
 if echo "$PRE" | grep -qiE "hit your limit|rate.?limit|429"; then
-    echo '{"status":"RATE_LIMITED","surface":"'$SF'"}'
+    echo '{"status":"RATE_LIMITED","surface":"'$SF'","source":"screen"}'
     exit 2
 fi
 

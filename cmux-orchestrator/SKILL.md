@@ -308,3 +308,11 @@ git commit -m "feat: [요약]"
 - `references/gate-enforcement.md` — GATE 체크리스트 상세
 - `references/worktree-workflow.md` — 워크트리 생명주기
 - `references/cmux-commands-full.md` — cmux CLI 전체 레퍼런스
+- `references/anti-rationalization.md` — 합리화 패턴 테이블 A/B/C + Counter 원칙 (Phase 2.4)
+
+## 운영 보조 스크립트 (Phase 2.3 / 2.4)
+
+- `scripts/cmux-check.sh "<발화>"` — 7종 합리화 패턴 감지 → `pass`/`ask`. `--last N` 모드로 최근 ledger 감사. 상세: `commands/cmux-check.md`.
+- `scripts/cmux-ledger.sh {tail|worker|verify-fail|integrity|compact|context}` — append-only ledger 조회. 다중 writer 원자성, 30/90일 회전.
+- `scripts/cmux-role-exec.sh {boss|watcher|peer}` — `CLAUDE_PEERS_NAME_PREFIX=<role>` 을 export 후 `claude` exec. 다음 세션 기동 시 logical_name 바인딩 확정.
+- `scripts/jarvis-anti-rationalization-report.py` — 월 1회 ledger 30일 집계 → `references/anti-rationalization.md` AUTO 블록 재작성. `jarvis-scheduler.py` cron `0 0 1 * *` 로 자동 발화.

@@ -1,5 +1,304 @@
 # Changelog
 
+## 2026-04-20 (Phase 2.4 — JARVIS Anti-Rationalization Tables)
+
+LLM/Worker/Boss 가 "환경 문제", "아마 동작할 것", "완료했습니다" 류 **자기 합리화**로 검증을 스킵하는 패턴이 반복 관측. Superpowers `systematic-debugging` 의 표 기반 안티패턴 리스트 + cmuxO 고유의 peer-fallback/토큰 관측 합리화 14종을 `references/anti-rationalization.md` 로 문서화. 감지 로직은 **독립 모듈** `anti_rationalization.py` 로 분리해 기존 commit-gate 훅의 블라스트 반경을 보존.
+
+**선행 Phase 리스크 흡수** (플랜 §0)
+- Phase 2.2 risk #1 (transcript missing 합리화), #2 (JSONL 파싱 실패 합리화) → Table A 에 2줄 추가
+- Phase 2.2.5 risk #1 (peer fallback 합리화), risk #2 (boss peer_id 결석 합리화) → Table A/B 에 2줄씩 추가
+- Phase 2.3 risk (ASSIGN/CLEAR/VERIFY_* 기록자 배선 미완) → 이 Phase 에서 함께 해결 (§0.6 지시 준수)
+
+**신규 모듈**
+- `cmux-orchestrator/scripts/anti_rationalization.py` — 순수 감지+증거조회 모듈. 7 정규식 패턴(카테고리 A/B), 5 evidence 마커, quoted-string 회피, override reason 허용, worker-scoped ledger VERIFY_PASS 조회.
+- `cmux-orchestrator/references/anti-rationalization.md` — Table A/B/C + Counter 원칙(Superpowers 인용) + 훅 동작 규약 + 자동수집 appendix 블록.
+- `/tmp/test_anti_rationalization.py` (시뮬) — **14/14 PASS**.
+
+**Ledger 기록자 배선 완료** (Phase 2.3 risk 해소)
+- `cmux-orchestrator/hooks/cmux-dispatch-notify.sh` — `cmux send` 감지 시 `/clear` 여부로 ASSIGN / CLEAR 분기 append (비동기).
+- `cmux-orchestrator/hooks/cmux-completion-verifier.py` — VERIFY_FLAG TTL 검증 결과에 따라 VERIFY_PASS(evidence=flag mtime) / VERIFY_FAIL(evidence="no flag or expired", excerpt=command[:200]) append.
+- `cmux-orchestrator/hooks/cmux-main-context.sh` — UserPromptSubmit 훅이 `python3 ledger.py context` stdout 을 `additionalContext` 에 주입(≤6KB cap, 2 s timeout).
+
+**감지 동작**
+- `classify(text, worker=None)` → `{"decision": "pass"|"ask", "matches": [...], "evidence": "text"|"ledger"|None, "reason": ...}`.
+- ASK 반환 — deny 가 아닌 **사용자 확인** 유도 (자율 판단 여지).
+- PASS 조건: (1) evidence 마커 in-text (`test N/N`, `VERIFY_PASS`, ...) (2) override reason 명시 (3) env issue + 구체적 binary/env var/permission/install (4) ledger 에 10분 이내 VERIFY_PASS 기록.
+
+**Iron Law 준수**
+- SSOT: 패턴 표 1 곳(references/), 감지 로직 1 모듈 ✓
+- SRP: 감지/증거-조회/렌더링 분리 ✓
+- 기존 L0 BLOCK commit-gate 훅 비침습 ✓
+- `override reason` 탈출구 보존 (자율성) ✓
+
+**검증**
+- `test_anti_rationalization.py` 14/14 PASS (8 원안 케이스 + 흡수 6 케이스)
+- 회귀: ledger 11/11, ledger-integration 5/5, peer_channel 12/12, token_observer 13/13 모두 유지 (총 55/55)
+- Hook 문법 정적 검증 (python ast.parse + bash -n) 3 파일 OK
+
+**제약 / 향후**
+- `cmux-leceipts-gate.py` 내부 통합은 의도적 미수행: L0 BLOCK 훅 확장은 블라스트 반경 과대, `anti_rationalization.classify()` 를 `/cmux-check` 수동 호출 경로로 롤아웃.
+
+---
+
+## 2026-04-20 (Phase 2.4 보강 — Remaining risk 3건 완결)
+
+Phase 2.4 Remaining risk 로 이관 예정이었던 3건을 같은 Phase 내에서 마감. 메모리 지시 `feedback_remaining_risk_propagation.md` 에 따라 Phase 3.1 에 불필요한 이월을 제거.
+
+**완결 항목**
+- `/cmux-check` 슬래시 커맨드 — `cmux-orchestrator/commands/cmux-check.md` + `cmux-orchestrator/scripts/cmux-check.sh`. 4 모드: 인라인 텍스트, `--stdin [worker]`, `--table` (references 테이블 출력), `--last N [worker]` (ledger tail 일괄 감사).
+- `jarvis-anti-rationalization-report.py` — 월 1회 ledger 30일 윈도를 스캔해 `references/anti-rationalization.md` 의 `<!-- BEGIN AUTO --> ... <!-- END AUTO -->` 블록을 빈도표로 재작성. `jarvis-scheduler.py` 에 `handler="anti_rationalization_report"` + cron `0 0 1 * *` 로 등록. atomic rename 으로 partial write 방지.
+- `role-register.sh` 확장 + `CLAUDE_PEERS_NAME_PREFIX` 주입 — `register <role> [peer_id]` 에 선택 인자 추가, 미지정 시 `peer_channel.py resolve <prefix>` 로 logical_name → peer_id 해석. 등록 직후 `ROLE_PEER_BIND {role, surface, workspace, cwd, peer_id, logical_name, ts}` 이벤트를 ledger 에 append. `cmux-orchestrator/scripts/cmux-role-exec.sh` 런처 신설: `CLAUDE_PEERS_NAME_PREFIX=<role>` 을 export 후 `claude` 를 exec → 차세대 Boss/Watcher 세션이 올바른 logical_name 으로 MCP 등록.
+
+**검증**
+- `/tmp/test_antirat_report.py` 5/5 PASS — 빈 ledger (데이터 없음 블록), 시드된 이벤트 (빈도표 + 상위 reason), 30일 윈도 경계, rewrite 가 헤더/본문 보존, 마커 부재 시 rewrite False.
+- `/tmp/test_role_register.py` 4/4 PASS — 명시 peer_id 저장, broker 부재 시 peer_id 필드 없음, name_prefix 포집, ROLE_PEER_BIND ledger 이벤트 실제 발생.
+- 전체 회귀: ledger 11/11, ledger-integration 5/5, anti-rationalization 14/14, antirat-report 5/5, role-register 4/4 — **39/39 PASS**.
+
+**제약**
+- `cmux-role-exec.sh` 는 **신규 세션 기동 경로만** 유효. 이미 실행 중인 Claude Code 세션의 env 에는 소급 적용 불가 — 사용자가 다음 세션부터 `bash cmux-role-exec.sh boss` 로 기동해야 logical_name 바인딩이 활성화됨.
+- cron 은 `jarvis-scheduler.py run` 프로세스가 기동 중일 때만 동작. 스케줄러 미기동 시 `jarvis-anti-rationalization-report.py` 를 수동 실행 가능.
+
+---
+
+## 2026-04-19 (Phase 2.3 — Ledger-Based Boss State)
+
+Boss 팀 운영 상태가 `cmux-eagle-status.json` / `cmux-task-queue.json` / `cmux-watcher-alerts.json` 에 산재 → 시간축 추적·포렌식·compaction 복구 모두 불가. **단일 append-only JSONL ledger** (`runtime/ledger/boss-ledger-YYYY-MM-DD.jsonl`) 도입으로 해결. MagenticOne/AutoGen 의 orchestrator ledger 패턴을 cmuxO 이벤트 타입에 맞춰 축약 적용.
+
+**선행 Phase 리스크 흡수** (플랜 §0)
+- Phase 2.2.5 risk #3 (PEER_SENT_LOG 의 소비자 부재) — peer_channel 이 ledger 로 `PEER_SENT`/`PEER_SEND_FAILED`/`PEER_PAYLOAD_DENIED` 를 **미러** 기록, 기존 JSONL log 도 운영 호환성 유지.
+- Phase 2.2.5 risk #1 (Boss/Watcher peer_id 바인딩 기록 경로 부재) — `ROLE_PEER_BIND` 이벤트 타입 정의(기록자는 후속 role-register 스크립트).
+- Phase 2.2 risk #1 (surface ↔ cwd 매핑 저장 공간 부재) — `ROLE_PEER_BIND` 에 `{surface, cwd, peer_id, logical_name}` 삼중 매핑 저장 경로 확보.
+- Phase 2.2 risk #2 (SCHEMA_VERSION bumping 감시) — ledger 첫 줄을 `{"type":"SCHEMA","version":1,"started_at":ts}` 로 고정, `integrity_check()` 가 schema mismatch 를 fail-open 로 감지.
+
+**신규 모듈**
+- `cmux-orchestrator/scripts/ledger.py` — `append/tail/query/integrity_check/compact_old/compaction_replay_context` 단일 API. `fcntl.flock(LOCK_EX)` + `O_APPEND` + `fsync` 로 다중 writer 원자성. 라인 > 4000B 시 `message_excerpt` 트렁케이트, event JSON 자체는 손상 금지.
+- `cmux-orchestrator/scripts/cmux-ledger.sh` — `tail [N] / worker <sid> / verify-fail / since <sec> / integrity / compact / context` 명령.
+- `/tmp/test_ledger.py` (시뮬) — 11/11 PASS. 10k 라인 tail 8ms, 50×100 동시 append 5000 valid / 0 broken.
+- `/tmp/test_ledger_integration.py` (통합) — peer_channel ↔ ledger 배선 5/5 PASS.
+
+**SSOT 확장** (`cmux_paths.py`)
+- `LEDGER_DIR`, `ledger_today_path(now=None)` 추가 (UTC date rotation).
+
+**기록 지점 연결**
+- `peer_channel.send()` 내부 `_mirror_to_ledger()` 헬퍼 — 성공/실패/guard 거절 3 경로 자동 기록.
+- `watcher-scan.py::do_scan()` 
+  - `RATE_LIMITED` 감지 시 `RATE_LIMIT_DETECTED` append.
+  - Report alerts 중 HIGH/CRITICAL 은 `ALERT_RAISED` append (RATE_LIMITED 는 중복 방지 skip).
+
+**이벤트 타입 정의** (enum)
+`SCHEMA, ASSIGN, ASSIGN_SKIP, REPORT_DONE_CLAIMED, VERIFY_PASS, VERIFY_FAIL, CLEAR, RATE_LIMIT_DETECTED, ALERT_RAISED, HOOK_BLOCK, PEER_SENT, PEER_SEND_FAILED, PEER_PAYLOAD_DENIED, ROLE_PEER_BIND`
+
+**스키마**
+- 파일 첫 줄: `{"type":"SCHEMA","version":1,"started_at":<ts>}`
+- 각 이벤트 라인: `{"ts":<epoch>, "type":<EVENT>, ...fields}`. UTC epoch, 타임존 모호성 제거.
+- 라인 크기 상한 4000B(`O_APPEND` 원자성). `message_excerpt` 는 200B 까지 clamp, 초과 시 `truncated=true` 플래그.
+
+**운영**
+- 30일 이상 파일 `gzip` 압축, 90일 경과 시 삭제 (`ledger.compact_old()`). 월 1회 cron 또는 수동 `cmux-ledger.sh compact` 실행.
+- Compaction 복구: `compaction_replay_context(n=30)` 가 Boss UserPromptSubmit 훅용 텍스트 블록 반환 (후속 `cmux-main-context.sh` 통합).
+
+**Iron Law 준수**
+- Append-only ✓, 원자적 쓰기 ✓, fail-open 정책(권한/디스크 실패 시 stderr 경고 + 호출자 차단 X) ✓, 감사 로그 훼손 불가 (각 줄 즉시 `fsync`) ✓.
+
+**제약 / 향후**
+- `cmux-main-context.sh` 가 ledger tail 을 실제 Boss 세션에 주입하도록 배선 필요 (Phase 2.3.1 또는 2.4 통합).
+- `ASSIGN`/`CLEAR`/`VERIFY_*` 기록은 dispatch/verifier 경로에 함수 호출 1 줄 삽입 대기(현재는 스키마·타입만 정의). Boss 루프가 정상 작동 중이라 회귀 없이 점진 배선 가능.
+- 테스트 `Case 8` 은 권한 오류 로그 1 줄 stderr 출력(정상). CI 파이프에서 `2>/dev/null` 로 숨길지 결정 필요.
+
+---
+
+## 2026-04-19 (Phase 2.2.5 — claude-peers Inter-Session Channel)
+
+Boss ↔ Watcher ↔ Worker 통신이 `cmux send + enter` 로 tmux 표면에 직접 타이핑하는 방식이라 **사용자 프롬프트와 보고 메시지가 뒤섞이고**, 메시지 메타(from_kind/from_cwd)가 손실되며, 표면 죽음 시 드롭. `claude-peers-oneclick` 브로커의 **peer-registration-free system 송신자 경로**(`POST /send-message` with `from_id` 만, `from_pid` 생략 → `from_kind='system'`) 를 도입해 구조화 + 이중 발행 guard.
+
+**신규 모듈**
+- `cmux-orchestrator/scripts/peer_channel.py` — HTTP 어댑터 (send / is_broker_alive / list_peers / resolve) + W-9 확장 guard (정규식으로 `/new|/clear|/compact|/quit|/exit` payload 거절) + `PEER_SENT_LOG_FILE` JSONL append.
+- `plans/cmux-upgrade-phase2-2-5-peers-integration.md` — 범위/설계/5관점 검증.
+- `/tmp/test_peer_channel_mock.py` (시뮬) — mock HTTP broker 상대 12/12 PASS.
+
+**SSOT 확장**
+- `cmux_paths.py`: `PEER_DIR`, `PEER_SENT_LOG_FILE` 상수 추가.
+- `CLAUDE_PEERS_BROKER_URL` / `CMUX_PEERS_ENABLED` 환경변수 override.
+
+**Watcher 통합** (`cmux-watcher/scripts/watcher-scan.py::notify_boss_surface`)
+- peer-first routing: `peer_channel.send()` 성공 시 `cmux send + enter` **스킵** (이중 발행 금지).
+- 실패(broker dead / peer 미해석 / guard 거절) 시 기존 cmux send 로 자동 fallback.
+- `CMUX_PEERS_ENABLED=0` kill switch 로 즉시 비활성 가능.
+
+**W-9 확장**
+- peers 채널은 `cmux-send-guard.py` 범위 밖 → `peer_channel._is_forbidden()` 에서 payload 정규식으로 `/new`·`/clear`·`/compact`·`/quit`·`/exit` 거절.
+- 허용: `[WATCHER→BOSS] DONE: ...`, `[BOSS→WATCHER] ACK: ...`, 기타 보고 태그.
+
+**검증**
+- mock broker 12/12 PASS (정상 send / broker down / unknown peer / logical_name resolve / guard / 로그 append / kill switch / health / list).
+- 실 브로커 E2E 스모크: `peer_channel.py health` 및 `list` 정상 (peers=4).
+- 현 환경 peer 이름이 전부 `claude@…` 라 `resolve("boss")` 는 None → watcher 가 자동 cmux send fallback 으로 동작 (correctness 유지).
+
+**운영 롤아웃 (다음 단계, Phase 2.3 연계)**
+- Boss Claude Code 세션을 `CLAUDE_PEERS_NAME_PREFIX=boss` 로 기동 → `logical_name=boss@<surface_id_8>` 등록.
+- 또는 `cmux-roles.json` 에 `peer_id` 필드 확장 — watcher 가 우선 조회.
+
+**Iron Law 준수**
+- 경로는 `cmux_paths` SSOT ✓, watcher 루프 non-blocking(HTTP 3 s timeout + broker health 0.5 s) ✓, 이중 발행 배타 routing ✓, W-9 확장 guard ✓.
+
+**제약 / 향후**
+- 브로커 SPOF — cmux send fallback 으로 완화, 완전 HA 는 Phase 3 범위.
+- logical_name 정규화는 `[a-z0-9._-]` 만 허용 → Watcher/Boss 이름은 ASCII 고정 (한글 라벨은 메시지 본문으로만).
+- Phase 2.3 ledger 가 `PEER_SENT_LOG_FILE` 를 소스로 audit trail 생성 예정.
+
+---
+
+## 2026-04-19 (Phase 2.2 — Token/Cache Observability)
+
+각 Worker(AI 팀원)의 input/output 토큰·캐시 히트율·턴 수가 불투명 → Superpowers 류 context bloat 을 사후에만 발견 가능했던 문제 해결. Claude Code가 남기는 `~/.claude/projects/<slug>/<uuid>.jsonl` transcripts 를 **tail 파싱 집계**하여 watcher 스캔 주기마다 runtime 에 persist.
+
+**신규 파일**
+- `cmux-orchestrator/scripts/token_observer.py` — JSONL tail 파서 + 집계 + 원자적 쓰기 + CLI (`collect|dump|alerts`). Claude 전용, 기타 AI 는 `cache_hit_ratio=None`.
+- `cmux-orchestrator/scripts/cmux-metrics.sh` — 표 형식 조회 스크립트 (`--json|--alerts|--refresh`).
+- `cmux-orchestrator/commands/cmux-metrics.md` — `/cmux-metrics` 슬래시 커맨드 등록.
+- `tests/../test_token_observer_real.py` (시뮬) — 13/13 PASS.
+
+**SSOT 확장**
+- `cmux-orchestrator/scripts/cmux_paths.py`:
+  - `TELEMETRY_DIR`, `TOKEN_METRICS_FILE` 추가 (runtime 디렉토리 기반).
+  - `cwd_to_slug()`, `surface_to_slug()`, `claude_projects_dir()` 헬퍼 추가 (slug 생성 1 곳 강제).
+  - `CLAUDE_PROJECTS_DIR` 환경 변수 override 지원 (테스트/격리).
+
+**저장 포맷** — `runtime/telemetry/token-metrics.json`
+```
+{version:1, updated_at, surfaces:{
+  "slug:...": {ai, input_tokens_total, output_tokens_total,
+               cache_read_total, cache_creation_total,
+               cache_hit_ratio, turns, last_turn_ts, sessions, cwd, slug}
+}}
+```
+- `cache_hit_ratio = cache_read / (input + cache_creation + cache_read)` — 플랜 §3.3 보정 반영.
+- 최근 3 개 transcript 만 합산, 10 MiB tail 윈도, 15 MiB 파일 ~76ms.
+
+**Watcher 통합** (`cmux-watcher/scripts/watcher-scan.py`)
+- `do_scan()` 끝부분에서 `collect_all()` + `generate_alerts()` 호출 (try/except, W-6 non-blocking).
+- `CACHE_INEFFICIENT` (cache_hit<50% & turns≥10) / `CONTEXT_LARGE` (input>200K) 경고를 기존 `WATCHER_ALERTS_FILE` report.alerts 에 MEDIUM 으로 병합.
+
+**검증**
+- 시뮬 13/13 PASS (원안 8 + 통합 5). 15MB tail 파싱 78ms (목표 500ms 대비 6배 여유).
+- 실제 `~/.claude/projects` 18 slug 에 대해 `cmux-metrics.sh --refresh` 동작 확인 (최대 turns 1832, cache_hit 94~98% 구간).
+- `~/.claude/skills/cmux-orchestrator/` 에 `cmux_paths.py`·`token_observer.py`·`cmux-metrics.sh`·`commands/cmux-metrics.md` 동기화 완료.
+
+**Iron Law 준수**
+- 경로는 `cmux_paths` SSOT ✓, 원자적 쓰기(`tempfile.mkstemp` + `os.replace` + flock sibling lock) ✓, watcher 루프 non-blocking ✓, AI 분기(`ai != "claude"` 조기 반환) ✓.
+
+**제약 / 향후**
+- surface ↔ cwd 매핑은 `cmux tree` 에 cwd 노출되지 않아 v1 은 slug-key 사용. 향후 `lsof` 기반 tty→pwd 보강 가능.
+- Anthropic usage 필드 rename 대비 `SCHEMA_VERSION=1` 도입 — 변경 시 bumping + migration.
+
+---
+
+## 2026-04-19 (Phase 2.1 — Watcher Progressive Disclosure)
+
+`cmux-watcher/SKILL.md` 가 839라인(~6272 토큰) 단일 파일로 모든 GATE/규칙/예시가 혼재 → 세션 시작 시 전량 context 주입되어 토큰 낭비. skillkit 의 3-layer progressive-disclosure 패턴으로 분리.
+
+**구조 변경**
+- `cmux-watcher/SKILL.md` 재작성: 839 → **152 라인** (~1399 토큰, **81.9% 라인 감소 / 77.7% 토큰 감소**).
+  - 프론트매터 + 핵심 루프(W-8 요약) + 세션 시작 1-커맨드 + GATE 표(W-1~W-10) + Peer/감지/출력 간추림만 유지.
+  - 모든 상세는 `references/` 로 이관, L1 은 네비게이션 역할.
+- `cmux-watcher/SKILL.md.pre-phase2-1.bak` — 백업 (원본 839라인 보존).
+
+**L2 파일 신규 (9개)**
+- `cmux-watcher/references/gate-w-1.md` — IDLE Zero Tolerance
+- `cmux-watcher/references/gate-w-2.md` — Error / Rate-Limit Immediate Alert (Phase 1.4 pool 연계)
+- `cmux-watcher/references/gate-w-3.md` — Vision Verify IDLE (Layer 2/2.5 상세 + ANE 4기능 + Vision Diff 판정표)
+- `cmux-watcher/references/gate-w-4.md` — Cooldown Respect (쿨다운 표)
+- `cmux-watcher/references/gate-w-5.md` — Action-Only Report (우선순위/보고 시점 표)
+- `cmux-watcher/references/gate-w-6.md` — Boss Never Blocked (백그라운드 운영 형태)
+- `cmux-watcher/references/gate-w-7.md` — 질문 금지 (허용/금지 예시 + Phase 1.2 hook 연계)
+- `cmux-watcher/references/gate-w-8.md` — 핵심 행동 사이클 (Adaptive Polling + PHASE 표 + 금지 행동)
+- `cmux-watcher/references/gate-w-10.md` — IDLE 재배정 촉구 + Debounce (grace 30s, 재촉 2분)
+- `cmux-watcher/references/gate-w-9.md` — 이미 Phase 1.2 에서 생성됨
+
+**CI 가드**
+- `tests/test_skill_md_structure.py` 신규. 4개 assertion:
+  1. `test_skill_md_size_gate` — L1 200 라인 이하 강제.
+  2. `test_gate_table_links_resolve` — GATE 표 링크가 실제 `references/gate-w-N.md` 파일로 해석.
+  3. `test_all_gates_w1_through_w10_linked` — W-1~W-10 전부 표에 포함.
+  4. `test_no_detailed_sections_leaked_to_l1` — `Step 1:`, 구체 OCR 커맨드 등 상세 예시가 L1 에 잔류하면 FAIL (regression guard).
+
+**검증**
+- 4/4 `test_skill_md_structure.py` PASS.
+- 기존 `tests/test_watcher_scan.py` 7/7, `tests/test_cmux_utils.py` 9/9, `tests/test_redaction.py` 8/8 회귀 없음.
+- 토큰 측정: before 839 lines / 25088 B / ~6272 tok → after 152 lines / 5597 B / ~1399 tok. 감소율 77.7% (DoD §7 목표 70~85% 범위 적합).
+- `~/.claude/skills/cmux-watcher/` 설치 위치 동기화 완료 (SKILL.md + 10 references/gate-w-*.md).
+
+**SSOT 기준**
+- 각 GATE 정본은 해당 `references/gate-w-N.md` 1 개 파일. L1 표는 요약 1줄 + 링크.
+- CI 가드가 향후 상세 내용이 L1 로 누수되면 자동 차단.
+
+## 2026-04-19 (Phase 1.4 — Rate-limit pool SSOT)
+
+`/tmp/cmux-rate-limited-pool.json` 이 프로토콜 문서에만 존재하고 실제 write 경로가 없었음 (orphan spec). Watcher가 RATE_LIMITED를 감지해도 Boss/dispatch가 참조할 데이터가 없어 rate-limited surface에 반복 배정 발생. GC 없으면 stale entry 누적으로 quota 회복 후에도 회피되는 2차 문제.
+
+**추가**
+- `cmux-orchestrator/scripts/rate_limit_pool.py` — pool CRUD + 3-tier GC SSOT 모듈. `upsert_entry / is_limited / list_limited / gc_expired / load` + CLI (`check / list / gc / dump`). 경로는 `cmux_paths.RATE_LIMITED_POOL_FILE` (env `CMUX_RATE_LIMITED_POOL_FILE` 오버라이드). MAX_ENTRIES=100 (초과 시 `detected_at` 오래된 순 축출), DEFAULT_TTL=3600s.
+  - 동시성: 별도 sibling `.lock` 파일 + `fcntl.flock(LOCK_EX)` (pool 자체에 flock하면 atomic rename이 inode 교체해 잠금 무효화됨).
+  - 손상 복원: JSON parse 실패 시 `.json.corrupt` 로 백업 후 빈 pool 재초기화, stderr 경고.
+
+**연결**
+- `cmux-watcher/scripts/watcher-scan.py:62-66` — `rate_limit_pool` import (ImportError fallback).
+- `cmux-watcher/scripts/watcher-scan.py:951-963` — RATE_LIMITED 분기에서 `upsert_entry` 호출 (예외 시 `logging.warning` 으로 watcher crash 방지).
+- `cmux-watcher/scripts/watcher-scan.py:1167-1174` — `generate_alerts` 반환 직전 `gc_expired()` 호출 (명시적 GC 주기 트리거).
+- `cmux-orchestrator/scripts/smart-dispatch.sh:12-17` — Step 0 pool precheck (`rate_limit_pool.py check $SF` → exit 2면 즉시 return). 결과 JSON에 `source:"pool"` 마커.
+- `cmux-orchestrator/scripts/idle-auto-dispatch.sh:237-242` — `dispatch_to_surface` 내부 pre-check (skip + log).
+
+**검증**
+- `/tmp/test_rate_limit_pool_real.py` — 실제 모듈 9/9 PASS (upsert/is_limited, TTL 0 만료, 덮어쓰기, 손상 JSON 복원, 100개 제한, 20 concurrent subprocess writer, gc_expired, CLI exit=2 limited, CLI exit=0 healthy).
+- E2E 수동: `smart-dispatch.sh` pool hit → `{"status":"RATE_LIMITED","source":"pool"}` + exit 2 (cmux stub로 검증).
+- `bash -n` 전 파일 통과. `python3 -c "import ast; ast.parse(...)"` rate_limit_pool.py + watcher-scan.py 통과.
+- `tests/test_watcher_scan.py` 기존 7/7 회귀 없음. `tests/test_cmux_utils.py` 9/9, `tests/test_redaction.py` 8/8 통과.
+
+**SSOT 기준**
+- pool 파일 경로: `cmux_paths.py:89` 유일. 모든 소비자는 `rate_limit_pool` 모듈 경유.
+- TTL/MAX_ENTRIES 상수: `rate_limit_pool.py` 유일.
+- dispatch 차단 결정: `is_limited()` 유일 (exit 2 convention은 `smart-dispatch.sh:4` 기존 주석과 정합).
+
+## 2026-04-19 (Phase 1.3 — ANE path SSOT)
+
+`ane_tool` (Apple Neural Engine OCR 바이너리) 경로가 5개 호출자에 하드코딩되어 있어 위치 변경 시 전량 수정 필요. SSOT 리졸버로 통합.
+
+**추가**
+- `cmux-orchestrator/scripts/cmux_paths.py::ane_tool_path()` — CMUX_ANE_TOOL → ANE_TOOL → PATH lookup → `~/Ai/System/11_Modules/ane-cli/ane_tool` 순으로 실행 가능한 경로 반환. 미발견 시 None.
+- `cmux-orchestrator/scripts/cmux-paths.sh::cmux_ane_tool` — 동일 정책의 bash 헬퍼. 미발견 시 빈 문자열 + exit 1.
+
+**리팩터**
+- `cmux-orchestrator/scripts/detect-surface-models.py:131-148`, `:238-244` — 2 곳 `os.path.expanduser(...)` 제거, `ane_tool_path()` 호출로 교체.
+- `cmux-orchestrator/scripts/eagle_watcher.sh:18-29` — `ANE_TOOL` 환경변수 직접 참조 → `cmux_ane_tool` 헬퍼 호출 후 fallback.
+- `cmux-orchestrator/scripts/vision-monitor.sh:8-19` — 동일 패턴.
+- `cmux-watcher/scripts/watcher-scan.py:53-62` — 하드코딩 `Path.home() / "Ai"...` → `ane_tool_path()` 호출 (ImportError fallback 유지).
+- `cmux-watcher/scripts/vision-stall-detector.py:20-30` — 동일.
+- `cmux-watcher/scripts/surface-monitor.py:25-35` — 동일.
+
+**검증**
+- `python3 -m py_compile` + `bash -n` 전 파일 통과.
+- `/tmp/test_ane_path_real.py` — 실제 `cmux_paths.ane_tool_path()` 로 7/7 PASS (env 우선순위, PATH 발견, 비실행 파일 fallthrough, 빈 env 스킵).
+- bash 헬퍼 3-tier 수동 확인 PASS.
+- `python3 tests/test_watcher_scan.py` 기존 7/7 회귀 없음.
+
+**SSOT 기준**
+- 하드코딩 grep: `grep -rn "Ai/System/11_Modules/ane-cli"` → references md + SKILL.md 문서 멘션만 (런타임 코드 0건).
+- 문서 경로 멘션은 사용자 안내용으로 의도적 유지.
+
+## 2026-04-19 (Phase 1.2 — GATE W-9 send-guard)
+
+Worker/Watcher 역할이 동료 surface에 `/new` 또는 `/clear`를 `tmux send-keys` / `cmux send-keys` 로 전송하지 못하도록 PreToolUse:Bash 훅으로 차단. 세션 리셋은 Boss 권한이라는 개입 금지 원칙(GATE W-9)을 훅 차원에서 강제.
+
+**추가**
+- `cmux-orchestrator/hooks/cmux-send-guard.py` — PreToolUse:Bash, `permissionDecision:"deny"`. `cmux identify` + `/tmp/cmux-roles.json` 으로 현재 역할 판정, `tmux|cmux send-keys -t <target> ... /new|/clear ...` 패턴 매칭. 자기 surface·변수 치환·비-send-keys는 fail-open 통과.
+- `cmux-watcher/references/gate-w-9.md` — 규칙 본문. 훅 deny 메시지가 이 경로를 안내.
+- `cmux-orchestrator/install.sh`, `cmux-orchestrator/activation-hook.sh` HOOK_MAP 에 등록 (`"PreToolUse", "Bash", 3`).
+
+**검증**
+- `python3 -m py_compile cmux-orchestrator/hooks/cmux-send-guard.py` 통과.
+- 통합 테스트 `/tmp/test_cmux_send_guard_hook.py` — 실제 훅에 stdin JSON 주입, 임시 PATH 에 `cmux` stub 배치, 10/10 PASS (worker/watcher deny, boss/self/변수/non-send-keys/orch-off/non-Bash allow).
+- 단위 시뮬레이션 `/tmp/test_cmux_send_guard.py` 8/8 PASS.
+
 ## 2026-04-19 (Hook schema migration — SyncHookJSONOutputSchema 전수 정합)
 
 **PreToolUse:Bash hook "Invalid input" 에러 연속 발생 근본 해결 (PR #8 + PR #9).**

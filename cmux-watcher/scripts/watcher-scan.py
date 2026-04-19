@@ -53,7 +53,43 @@ if not ORCHESTRATOR_SCRIPTS.exists():
 EAGLE_WATCHER = ORCHESTRATOR_SCRIPTS / "eagle_watcher.sh"
 VISION_MONITOR = ORCHESTRATOR_SCRIPTS / "vision-monitor.sh"
 EAGLE_ANALYZER = ORCHESTRATOR_SCRIPTS / "eagle_analyzer.py"
-ANE_TOOL = Path.home() / "Ai" / "System" / "11_Modules" / "ane-cli" / "ane_tool"
+
+if str(ORCHESTRATOR_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(ORCHESTRATOR_SCRIPTS))
+try:
+    from cmux_paths import ane_tool_path as _ane_tool_path
+    ANE_TOOL = _ane_tool_path() or Path("/nonexistent/ane_tool")
+except ImportError:
+    ANE_TOOL = Path.home() / "Ai" / "System" / "11_Modules" / "ane-cli" / "ane_tool"
+
+try:
+    import rate_limit_pool as _rate_pool
+except ImportError:
+    _rate_pool = None
+
+try:
+    import token_observer as _token_obs
+except ImportError:
+    _token_obs = None
+
+try:
+    import peer_channel as _peer_ch
+except ImportError:
+    _peer_ch = None
+
+try:
+    import ledger as _ledger
+except ImportError:
+    _ledger = None
+
+
+def _ledger_append(event_type, **fields):
+    if _ledger is None:
+        return
+    try:
+        _ledger.append(event_type, **fields)
+    except Exception:
+        pass
 
 READ_SURFACE = ORCHESTRATOR_SCRIPTS / "read-surface.sh"
 
@@ -941,6 +977,17 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
         elif status == "RATE_LIMITED":
             reset_time = info.get("reset_time", "")
             alert_key = f"ratelimit:{sid}"
+            if _rate_pool is not None:
+                try:
+                    _rate_pool.upsert_entry(
+                        surface_id=surface_ref,
+                        ai=ai_name,
+                        reason="usage_limit",
+                        excerpt=snippet,
+                        ttl_seconds=_rate_pool.DEFAULT_TTL,
+                    )
+                except Exception as exc:  # pool corruption must not crash watcher
+                    logging.warning("rate_limit_pool upsert failed for %s: %s", surface_ref, exc)
             if not is_cooldown_active(alert_key, history, ERROR_COOLDOWN_SECONDS):
                 alerts.append({
                     "priority": "HIGH",
@@ -955,6 +1002,10 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
                     "timestamp": timestamp,
                 })
                 append_alert_history(alert_key, timestamp)
+                _ledger_append("RATE_LIMIT_DETECTED",
+                               surface=surface_ref, workspace=workspace,
+                               ai=ai_name, reset_time=reset_time,
+                               message_excerpt=snippet)
 
         # --- STALLED alerts (HIGH) ---
         elif status == "STALLED":
@@ -1138,6 +1189,14 @@ def generate_alerts(eagle_data: dict, vision_data: dict) -> list[dict]:
                 write_json_atomic(str(ORPHAN_COUNTER_FILE), orphan_counters)
         except Exception:
             pass
+
+    if _rate_pool is not None:
+        try:
+            removed = _rate_pool.gc_expired()
+            if removed:
+                logging.info("rate_limit_pool: gc removed %d expired entries", removed)
+        except Exception as exc:
+            logging.warning("rate_limit_pool gc failed: %s", exc)
 
     logging.info(f"Alerts generated: {len(alerts)}")
     return alerts
@@ -1422,6 +1481,48 @@ def main() -> None:
         except Exception:
             pass
 
+        # Phase 2.3 — mirror HIGH alerts into the ledger (RATE_LIMIT_DETECTED
+        # already logged above; ALERT_RAISED captures everything else).
+        for alert in report.get("alerts", []) or []:
+            if alert.get("priority") not in ("HIGH", "CRITICAL"):
+                continue
+            if alert.get("status") == "RATE_LIMITED":
+                continue
+            _ledger_append(
+                "ALERT_RAISED",
+                priority=alert.get("priority"),
+                surface=alert.get("surface_ref") or alert.get("surface_id"),
+                workspace=alert.get("workspace"),
+                status=alert.get("status"),
+                action=alert.get("action"),
+                message_excerpt=alert.get("message"),
+            )
+
+        # Phase 2.2 — token/cache telemetry (non-blocking, W-6)
+        if _token_obs is not None:
+            try:
+                tok_payload = _token_obs.collect_all()
+                tok_alerts = _token_obs.generate_alerts(tok_payload)
+                if tok_alerts:
+                    report.setdefault("alerts", []).extend([
+                        {
+                            "priority": a.get("severity", "MEDIUM"),
+                            "type": a["kind"],
+                            "surface": a["surface"],
+                            "message": a["message"],
+                            "source": "token_observer",
+                        }
+                        for a in tok_alerts
+                    ])
+                    try:
+                        WATCHER_ALERTS_FILE.write_text(
+                            json.dumps(report, ensure_ascii=False, indent=2)
+                        )
+                    except Exception:
+                        pass
+            except Exception as exc:
+                logging.warning("token_observer collect_all failed: %s", exc)
+
         return report
 
     notify_boss = "--notify-boss" in args
@@ -1502,12 +1603,28 @@ def main() -> None:
 
         msg = "\n".join(lines[:8])
 
-        run_cmd(["cmux", "send", "--workspace", workspace,
-                 "--surface", surface, msg], timeout=5)
-        import time as _time
-        _time.sleep(0.5)
-        run_cmd(["cmux", "send-key", "--workspace", workspace,
-                 "--surface", surface, "enter"], timeout=5)
+        # Phase 2.2.5 — peer-first routing. On success, skip cmux send to
+        # avoid double-injection. On failure/disabled, fall through.
+        peer_sent = False
+        if _peer_ch is not None and os.environ.get("CMUX_PEERS_ENABLED", "1") != "0":
+            try:
+                boss_peer = boss_info.get("peer_id") or _peer_ch.resolve("boss")
+                if boss_peer:
+                    r = _peer_ch.send(boss_peer, msg, from_id="watcher")
+                    peer_sent = bool(r.get("ok"))
+                    if not peer_sent:
+                        logging.info("peer_channel send fallback: %s",
+                                     r.get("reason") or r.get("error"))
+            except Exception as exc:
+                logging.warning("peer_channel send failed: %s", exc)
+
+        if not peer_sent:
+            run_cmd(["cmux", "send", "--workspace", workspace,
+                     "--surface", surface, msg], timeout=5)
+            import time as _time
+            _time.sleep(0.5)
+            run_cmd(["cmux", "send-key", "--workspace", workspace,
+                     "--surface", surface, "enter"], timeout=5)
 
     def do_heartbeat() -> None:
         """Update watcher heartbeat."""

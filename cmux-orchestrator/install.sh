@@ -164,6 +164,7 @@ HOOK_MAP = {
     "cmux-watcher-activate.sh": ("UserPromptSubmit", None, 5),
     # GATE 7 + LECEIPTS + Memory
     "cmux-control-tower-guard.py": ("PreToolUse", "Bash", 3),
+    "cmux-send-guard.py": ("PreToolUse", "Bash", 3),
     "cmux-leceipts-gate.py": ("PreToolUse", "Bash", 3),
     "cmux-memory-recorder.sh": ("PostToolUse", "Bash", 3),
     # Plan Quality Gate

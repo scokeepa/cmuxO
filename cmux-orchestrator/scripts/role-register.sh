@@ -43,9 +43,10 @@ print(caller.get('workspace_ref', ''))
 " 2>/dev/null
 }
 
-# 역할 등록
+# 역할 등록 — peer_id 조회 + ROLE_PEER_BIND ledger 이벤트 함께 기록
 function_register() {
   local variable_role="$1"  # boss | watcher
+  local variable_peer_id="${2:-}"  # 선택: 외부 주입된 peer_id
   local variable_surface=""
   local variable_workspace=""
   local variable_timestamp=""
@@ -59,8 +60,20 @@ function_register() {
     return 1
   fi
 
-  python3 - "$ROLES_FILE" "$variable_role" "$variable_surface" "$variable_workspace" "$variable_timestamp" "$$" <<'PY'
+  # peer_id 미지정 시 peer_channel.resolve 로 logical_name 조회 시도
+  # resolve 출력은 {"name":..., "id": <peer_id|null>} JSON — .id 만 추출
+  if [ -z "$variable_peer_id" ]; then
+    local variable_prefix="${CLAUDE_PEERS_NAME_PREFIX:-$variable_role}"
+    variable_peer_id=$(python3 "$(dirname "$0")/peer_channel.py" resolve "$variable_prefix" 2>/dev/null \
+      | python3 -c "import json,sys
+try: d=json.loads(sys.stdin.read()); print(d.get('id') or '')
+except Exception: print('')" 2>/dev/null || true)
+  fi
+
+  python3 - "$ROLES_FILE" "$variable_role" "$variable_surface" "$variable_workspace" "$variable_timestamp" "$$" "$variable_peer_id" "${CLAUDE_PEERS_NAME_PREFIX:-}" "$(dirname "$0")" <<'PY'
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -70,8 +83,10 @@ surface = sys.argv[3]
 workspace = sys.argv[4]
 timestamp = sys.argv[5]
 pid = sys.argv[6]
+peer_id = sys.argv[7] or None
+name_prefix = sys.argv[8] or None
+script_dir = sys.argv[9]
 
-# 기존 파일 읽기
 data = {}
 if roles_file.exists():
     try:
@@ -79,17 +94,45 @@ if roles_file.exists():
     except (json.JSONDecodeError, OSError):
         data = {}
 
-# 역할 등록
-data[role] = {
+entry = {
     "surface": surface,
     "workspace": workspace,
     "pid": int(pid),
     "started_at": timestamp,
     "last_heartbeat": timestamp,
 }
+if peer_id:
+    entry["peer_id"] = peer_id
+if name_prefix:
+    entry["name_prefix"] = name_prefix
+data[role] = entry
 
 roles_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-print(f"REGISTERED: {role} = {surface} (workspace: {workspace}, pid: {pid})")
+print(f"REGISTERED: {role} = {surface} (workspace: {workspace}, pid: {pid}, peer_id: {peer_id or '-'})")
+
+# ROLE_PEER_BIND ledger 이벤트 — Phase 2.4 (Phase 3.1 와 연동)
+try:
+    ledger_py = Path(script_dir) / "ledger.py"
+    if ledger_py.exists():
+        import time as _t
+        fields = {
+            "role": role,
+            "surface": surface,
+            "workspace": workspace,
+            "cwd": os.getcwd(),
+            "ts": int(_t.time()),
+        }
+        if peer_id:
+            fields["peer_id"] = peer_id
+        if name_prefix:
+            fields["logical_name"] = name_prefix
+        subprocess.run(
+            ["python3", str(ledger_py), "append", "ROLE_PEER_BIND",
+             "--fields", json.dumps(fields)],
+            capture_output=True, text=True, timeout=2,
+        )
+except Exception:
+    pass
 PY
 }
 
@@ -410,7 +453,7 @@ PY
 # 메인 라우터
 case "${1:-status}" in
   register)
-    function_register "${2:?역할을 지정하세요 (boss|watcher)}"
+    function_register "${2:?역할을 지정하세요 (boss|watcher)}" "${3:-}"
     ;;
   whoami)
     function_whoami

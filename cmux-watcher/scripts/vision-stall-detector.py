@@ -18,7 +18,14 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 ORCH_DIR = Path.home() / ".claude/skills/cmux-orchestrator"
-ANE_TOOL = Path.home() / "Ai/System/11_Modules/ane-cli/ane_tool"
+_ORCH_SCRIPTS = ORCH_DIR / "scripts"
+if str(_ORCH_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_ORCH_SCRIPTS))
+try:
+    from cmux_paths import ane_tool_path as _ane_tool_path
+    ANE_TOOL = _ane_tool_path() or Path("/nonexistent/ane_tool")
+except ImportError:
+    ANE_TOOL = Path.home() / "Ai/System/11_Modules/ane-cli/ane_tool"
 SCAN_FILE = Path("/tmp/cmux-surface-scan.json")
 PREV_STATE_FILE = Path("/tmp/cmux-vision-prev-state.json")
 STALL_THRESHOLD = 30  # 초

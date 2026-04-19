@@ -234,6 +234,13 @@ dispatch_to_surface() {
     return 1
   fi
 
+  # Rate-limit pool pre-check (SSOT)
+  python3 "${SCRIPT_DIR}/rate_limit_pool.py" check "surface:${surface_id}" >/dev/null 2>&1
+  if [ "$?" = "2" ]; then
+    log_skip "$(timestamp_utc)" "surface:${surface_id} rate-limited (pool) — skipping dispatch"
+    return 1
+  fi
+
   workspace="$(function_resolve_workspace "$surface_id")"
 
   if [ "$DRY_RUN" = true ]; then

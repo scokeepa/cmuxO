@@ -18,7 +18,14 @@ variable_stalled_threshold=300
 variable_script_dir="$(cd "$(dirname "$0")" && pwd)"
 variable_skill_dir="${SKILL_DIR:-$(dirname "$variable_script_dir")}"
 variable_config_file="${variable_skill_dir}/config/orchestra-config.json"
-variable_ane_tool="${ANE_TOOL:-$HOME/Ai/System/11_Modules/ane-cli/ane_tool}"
+
+# shellcheck source=cmux-paths.sh
+if [ -f "$variable_script_dir/cmux-paths.sh" ]; then
+  . "$variable_script_dir/cmux-paths.sh"
+  variable_ane_tool="$(cmux_ane_tool || true)"
+else
+  variable_ane_tool="${CMUX_ANE_TOOL:-${ANE_TOOL:-$HOME/Ai/System/11_Modules/ane-cli/ane_tool}}"
+fi
 
 for variable_arg in "$@"; do
   case "$variable_arg" in

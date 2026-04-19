@@ -24,6 +24,21 @@ from cmux_utils import is_boss_surface
 from hook_output import deny_pretool as deny
 from leceipts_validator import is_git_commit
 
+try:
+    import ledger as _ledger
+except ImportError:
+    _ledger = None
+
+
+def _ledger_append(event_type, **fields):
+    if _ledger is None:
+        return
+    try:
+        _ledger.append(event_type, **fields)
+    except Exception:
+        pass
+
+
 VERIFY_FLAG = "/tmp/cmux-verification-passed"
 MAX_AGE = 300  # 5분 이내 검증만 유효
 
@@ -55,12 +70,18 @@ def main():
         try:
             mtime = os.path.getmtime(VERIFY_FLAG)
             if time.time() - mtime < MAX_AGE:
-                # 검증 통과 (TTL 기반 자연 만료, 삭제하지 않음)
+                _ledger_append("VERIFY_PASS",
+                               worker="boss",
+                               evidence=f"flag mtime={int(mtime)}")
                 return
         except OSError:
             pass
 
     # 검증 미실행
+    _ledger_append("VERIFY_FAIL",
+                   worker="boss",
+                   evidence="no flag or expired",
+                   message_excerpt=command[:200])
     deny("[VERIFY-BLOCK] ⛔ git commit 전 검증 미실행. 먼저 pytest + 파일 존재 확인 등 기계적 검증을 실행하고 touch /tmp/cmux-verification-passed 하세요. AI 자기 보고를 믿지 마세요.")
 
 if __name__ == "__main__":

@@ -129,7 +129,24 @@ try:
 except Exception:
     pass
 
-msg = msg + mentor_section + hint_section
+ledger_section = ''
+try:
+    import subprocess
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _ledger_py = os.path.join(_here, '..', 'scripts', 'ledger.py')
+    if os.path.exists(_ledger_py):
+        _out = subprocess.run(
+            ['python3', _ledger_py, 'context'],
+            capture_output=True, text=True, timeout=2,
+        )
+        if _out.returncode == 0 and _out.stdout.strip():
+            _stdout = _out.stdout.strip()
+            if len(_stdout) <= 6000:
+                ledger_section = chr(10) + chr(10) + _stdout
+except Exception:
+    pass
+
+msg = msg + mentor_section + hint_section + ledger_section
 
 print(json.dumps({'hookSpecificOutput': {'hookEventName': 'UserPromptSubmit', 'additionalContext': msg}}, ensure_ascii=False))
 " 2>/dev/null || exit 0

@@ -174,11 +174,25 @@ def run_detect() -> dict:
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     return mod.EvolutionEngine().detect()
 
+def _run_anti_rationalization_report() -> str:
+    """Phase 2.4 — rewrite references/anti-rationalization.md AUTO block."""
+    import subprocess
+    script = Path(__file__).resolve().parent.parent.parent / \
+        "cmux-orchestrator" / "scripts" / "jarvis-anti-rationalization-report.py"
+    if not script.exists():
+        return f"missing:{script}"
+    out = subprocess.run(["python3", str(script)],
+                         capture_output=True, text=True, timeout=30)
+    return (out.stdout or out.stderr or "ok").strip()[:500]
+
+
 def _execute_handler(handler: str) -> tuple:
     try:
         if handler == "detect": return True, json.dumps(run_detect(), default=str), ""
         elif handler == "verify": return True, "verify ok", ""
         elif handler == "prune": return True, "prune ok", ""
+        elif handler == "anti_rationalization_report":
+            return True, _run_anti_rationalization_report(), ""
         else: return True, f"custom:{handler}", ""
     except Exception as e: return False, "", str(e)
 

@@ -99,6 +99,7 @@ HOOK_MAP = {
     "cmux-watcher-session.sh": ("SessionStart", None, 5),
     "cmux-watcher-activate.sh": ("UserPromptSubmit", None, 120),
     "cmux-control-tower-guard.py": ("PreToolUse", "Bash", 3),
+    "cmux-send-guard.py": ("PreToolUse", "Bash", 3),
     "cmux-leceipts-gate.py": ("PreToolUse", "Bash", 3),
     "cmux-memory-recorder.sh": ("PostToolUse", "Bash", 3),
     "cmux-plan-quality-gate.py": ("PreToolUse", "ExitPlanMode", 5),

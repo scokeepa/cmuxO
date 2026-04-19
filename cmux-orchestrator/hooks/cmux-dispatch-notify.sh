@@ -19,6 +19,20 @@ if echo "$COMMAND" | grep -qE 'cmux (send|set-buffer|paste-buffer)'; then
   if [ -n "$SURFACE" ]; then
     # 와쳐에 알림 (비동기, 실패해도 무시)
     cmux display-message "📡 작업 전송: $SURFACE" 2>/dev/null &
+
+    # Phase 2.3/2.4 — ledger append (비동기, 실패해도 무시)
+    LEDGER_PY="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/ledger.py"
+    if [ -f "$LEDGER_PY" ]; then
+      if echo "$COMMAND" | grep -qE '(^|[^a-zA-Z0-9_])/clear(\b|$)'; then
+        python3 "$LEDGER_PY" append CLEAR \
+          --fields "{\"worker\":\"${SURFACE}\",\"boss\":\"main\"}" \
+          >/dev/null 2>&1 &
+      else
+        python3 "$LEDGER_PY" append ASSIGN \
+          --fields "{\"worker\":\"${SURFACE}\",\"boss\":\"main\"}" \
+          >/dev/null 2>&1 &
+      fi
+    fi
   fi
 fi
 

@@ -8,9 +8,16 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/workspace-resolver.sh"
 source "${SCRIPT_DIR}/cmux_compat.sh" 2>/dev/null || true
+# shellcheck source=cmux-paths.sh
+[ -f "${SCRIPT_DIR}/cmux-paths.sh" ] && . "${SCRIPT_DIR}/cmux-paths.sh"
 
 SURFACES="${1:-2 3 4 5 6 10 11 7 8 13 14 15 16 19 20}"
-ANE_TOOL="$HOME/Ai/System/11_Modules/ane-cli/ane_tool"
+if command -v cmux_ane_tool >/dev/null 2>&1; then
+  ANE_TOOL="$(cmux_ane_tool || true)"
+  [ -z "$ANE_TOOL" ] && ANE_TOOL="$HOME/Ai/System/11_Modules/ane-cli/ane_tool"
+else
+  ANE_TOOL="${CMUX_ANE_TOOL:-${ANE_TOOL:-$HOME/Ai/System/11_Modules/ane-cli/ane_tool}}"
+fi
 SCREENSHOT_DIR="/tmp/cmux-vision-monitor"
 PREV_FILE="/tmp/cmux-vision-monitor-prev.json"
 IDLE_THRESHOLD=120

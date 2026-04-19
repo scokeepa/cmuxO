@@ -25,7 +25,13 @@ from pathlib import Path
 ORCH_DIR = Path.home() / ".claude" / "skills" / "cmux-orchestrator" / "scripts"
 READ_SURFACE = ORCH_DIR / "read-surface.sh"
 EAGLE_ANALYZER = ORCH_DIR / "eagle_analyzer.py"
-ANE_TOOL = Path.home() / "Ai" / "System" / "11_Modules" / "ane-cli" / "ane_tool"
+if str(ORCH_DIR) not in sys.path:
+    sys.path.insert(0, str(ORCH_DIR))
+try:
+    from cmux_paths import ane_tool_path as _ane_tool_path
+    ANE_TOOL = _ane_tool_path() or Path("/nonexistent/ane_tool")
+except ImportError:
+    ANE_TOOL = Path.home() / "Ai" / "System" / "11_Modules" / "ane-cli" / "ane_tool"
 
 # ---------------------------------------------------------------------------
 # Helpers
