@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-04-19 (Hook schema migration — SyncHookJSONOutputSchema 전수 정합)
+
+**PreToolUse:Bash hook "Invalid input" 에러 연속 발생 근본 해결 (PR #8 + PR #9).**
+
+Claude Code 코어 `SyncHookJSONOutputSchema` (coreSchemas.ts:907) 위반 전수 수정. top-level 허용 키는 `{continue, suppressOutput, stopReason, decision("approve"|"block" 레거시), systemMessage, reason, hookSpecificOutput}` 뿐이며, 모든 permission/context 주입은 `hookSpecificOutput` 안에 위치해야 한다.
+
+**Tier A — decision:"allow" 제거 (PR #8)**
+- 훅 pass-through는 `exit 0 + 빈 stdout`이 정본. `{"decision":"allow"}`는 decision enum 밖이므로 즉시 validation 실패. `cmux-read-guard.sh` 외 다수 훅에서 제거.
+
+**Tier B — 레거시 decision:"approve"|"block" → permissionDecision (PR #8)**
+- PreToolUse 차단/승인을 `hookSpecificOutput.permissionDecision:"deny"|"allow"` + `permissionDecisionReason`으로 이관.
+
+**Tier C — PostToolUse 경고 → additionalContext (PR #8)**
+- `cmux-enforcement-escalator.py`, `cmux-idle-reuse-enforcer.py`, `cmux-setbuffer-fallback.py`의 systemMessage 스타일 → `hookSpecificOutput.hookEventName:"PostToolUse"` + `additionalContext` 이관. `cmux-dispatch-notify.sh`, `cmux-memory-recorder.sh`도 pass-through로 정리.
+
+**Phase 4 — hook_output SSOT 헬퍼 추출 (PR #8)**
+- `cmux-orchestrator/scripts/hook_output.py` 신규 — `deny_pretool()`, `ask_pretool()`, `allow_pretool_with_updated_input()`, `inject_posttool_context()`, `warn()`. 13개 Python 훅이 `from hook_output import deny_pretool as deny` 방식으로 호출.
+- `cmux-orchestrator/scripts/hook_output.sh` 신규 — bash 동반 헬퍼. env var heredoc 패턴으로 `hook_deny_pretool`, `hook_ask_pretool`, `hook_allow_pretool_cmd`, `hook_inject_posttool`, `hook_warn` 제공.
+
+**Tier D — gate-blocker.sh + 참조 문서 (PR #9)**
+- `cmux-orchestrator/scripts/gate-blocker.sh` — 5개 `echo '{"decision":"block",...}'` → `hook_deny_pretool`. `hook_output.sh` SSOT 소스 사용.
+- `cmux-orchestrator/references/gate-enforcement.md` — "gate-blocker.sh가 PreToolUse 훅으로 등록됨" 잘못된 주장 정정 (실제로는 settings.json 미등록 통합 게이트 참조 스크립트). 예시 블록을 modern 스키마로 갱신.
+- `cmux-orchestrator/references/gate-matrix.md` — Legend를 `hookSpecificOutput.permissionDecision` / `additionalContext` 현재 스키마로 교체.
+
+**Tier E — 시뮬레이션 검증으로 발견한 top-level additionalContext (PR #9)**
+- `/tmp/hook-schema-sim.py`로 등록 21개 훅 × 4 시나리오(A:orch-off / B:benign / C:git-commit / D:bad-stdin) = 84회 실행 후 7건 스키마 위반 추가 발견.
+- `cmux-orchestrator/hooks/cmux-model-profile-hook.sh` (SessionStart) — heredoc `{"additionalContext":"..."}` → `hookSpecificOutput.hookEventName:"SessionStart"` 래핑.
+- `cmux-orchestrator/hooks/cmux-idle-reminder.sh` (UserPromptSubmit) — IDLE/WAITING heredoc 2곳 → `hookSpecificOutput.hookEventName:"UserPromptSubmit"` 래핑.
+
+**검증**
+- ast.parse / `bash -n` 전 훅 OK.
+- pass-through 시뮬레이션 (orch-off) 전 훅 빈 stdout + exit 0.
+- deny-shape 엔드투엔드 테스트 (gate-blocker + leceipts-gate + control-tower-guard) modern JSON 출력 확인.
+- 최종 시뮬레이션: **81 pass / 0 fail** (이전 74 pass / 7 fail).
+- 잔존 legacy `"decision":"(approve|block|allow)"` grep: 의도적 SSOT docstring 경고 3건뿐.
+- 설치 위치 `/Users/csm/.claude/skills/cmux-orchestrator/` 동기화 완료.
+
 ## 2026-04-15 (leceipts artifact gate + detect_surfaces archive + Boss role minimal)
 
 **외부 리뷰 Conditional Go 4 Phase 중 3/4 Phase + Phase 1/2 축소판 실행. (PR #6)**

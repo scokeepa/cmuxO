@@ -48,20 +48,32 @@ if waiting:
     print(f'{len(parts)}|{', '.join(parts)}')
 " 2>/dev/null)
 
-# IDLE 경고 출력
+# IDLE 경고 출력 (schema: hookSpecificOutput.additionalContext — coreSchemas.ts:907)
 if [ -n "$variable_idle_info" ]; then
   variable_count=$(echo "$variable_idle_info" | cut -d'|' -f1)
   variable_details=$(echo "$variable_idle_info" | cut -d'|' -f2)
-  cat << EOF
-{"additionalContext":"[CMUX-IDLE] ${variable_count}개 IDLE: ${variable_details}. 병렬 가능하면 cmux send 위임."}
-EOF
+  HOOK_CTX="[CMUX-IDLE] ${variable_count}개 IDLE: ${variable_details}. 병렬 가능하면 cmux send 위임." python3 - <<'PY'
+import json, os
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": os.environ.get("HOOK_CTX", ""),
+    }
+}, ensure_ascii=False))
+PY
 fi
 
 # WAITING 경고 출력 (별도)
 if [ -n "$variable_waiting_info" ]; then
   variable_count=$(echo "$variable_waiting_info" | cut -d'|' -f1)
   variable_details=$(echo "$variable_waiting_info" | cut -d'|' -f2)
-  cat << EOF
-{"additionalContext":"⚠️ WAITING (질문 대기): ${variable_details} — 답변 필요!"}
-EOF
+  HOOK_CTX="⚠️ WAITING (질문 대기): ${variable_details} — 답변 필요!" python3 - <<'PY'
+import json, os
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": os.environ.get("HOOK_CTX", ""),
+    }
+}, ensure_ascii=False))
+PY
 fi

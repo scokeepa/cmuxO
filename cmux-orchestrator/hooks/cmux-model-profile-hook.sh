@@ -33,9 +33,22 @@ if [ "$IS_LEAN" = "true" ]; then
     fi
     SKILL_COUNT=$(ls "$SKILLS_LEAN" 2>/dev/null | wc -l | tr -d ' ')
 
-    cat << JSON
-{"additionalContext":"[LEAN MODE] Sonnet/Haiku 감지 → 스킬 ${SKILL_COUNT}개만 활성화됨.\n\n⚠️ LEAN MODE 규칙:\n- Skill() 자동 호출 절대 금지\n- 명시적 요청이 없으면 어떤 스킬도 로드하지 않음\n- cmux 명령어는 Bash로 직접 실행\n- 컨텍스트 절약 최우선"}
-JSON
+    SKILL_CONTEXT="[LEAN MODE] Sonnet/Haiku 감지 → 스킬 ${SKILL_COUNT}개만 활성화됨.
+
+⚠️ LEAN MODE 규칙:
+- Skill() 자동 호출 절대 금지
+- 명시적 요청이 없으면 어떤 스킬도 로드하지 않음
+- cmux 명령어는 Bash로 직접 실행
+- 컨텍스트 절약 최우선"
+    HOOK_CTX="$SKILL_CONTEXT" python3 - <<'PY'
+import json, os
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "SessionStart",
+        "additionalContext": os.environ.get("HOOK_CTX", ""),
+    }
+}, ensure_ascii=False))
+PY
 else
     if [ "$CURRENT_LINK" != "$SKILLS_FULL" ] && [ -d "$SKILLS_FULL" ]; then
         rm -f "$SKILLS_LINK"
@@ -43,7 +56,13 @@ else
     fi
     SKILL_COUNT=$(ls "$SKILLS_FULL" 2>/dev/null | wc -l | tr -d ' ')
 
-    cat << JSON
-{"additionalContext":"[FULL MODE] Opus 감지 → 모든 스킬 ${SKILL_COUNT}개 활성화됨. 오케스트레이션 모드."}
-JSON
+    HOOK_CTX="[FULL MODE] Opus 감지 → 모든 스킬 ${SKILL_COUNT}개 활성화됨. 오케스트레이션 모드." python3 - <<'PY'
+import json, os
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "SessionStart",
+        "additionalContext": os.environ.get("HOOK_CTX", ""),
+    }
+}, ensure_ascii=False))
+PY
 fi
