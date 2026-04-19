@@ -14,9 +14,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/cmuxO%20skills-9-blue?style=flat-square" alt="cmuxO skills 9">
   <img src="https://img.shields.io/badge/cmuxO%20hooks-31-orange?style=flat-square" alt="cmuxO hooks 31">
-  <img src="https://img.shields.io/badge/cmuxO%20restore-SQL%20extract-ff6b6b?style=flat-square" alt="cmuxO restore SQL extract">
-  <img src="https://img.shields.io/badge/cmuxO%20files-216-green?style=flat-square" alt="cmuxO files 216">
-  <img src="https://img.shields.io/badge/cmuxO%20tests-86-informational?style=flat-square" alt="cmuxO tests 86">
+  <img src="https://img.shields.io/badge/cmuxO%20ledger-SSOT%20append--only-ff6b6b?style=flat-square" alt="cmuxO ledger append-only SSOT">
+  <img src="https://img.shields.io/badge/cmuxO%20anti--rationalization-Table%20A%2FB%2FC-ff6b6b?style=flat-square" alt="cmuxO anti-rationalization A/B/C">
+  <img src="https://img.shields.io/badge/cmuxO%20tests-90-informational?style=flat-square" alt="cmuxO tests 90">
   <img src="https://img.shields.io/badge/cmuxO%20mentor%20scripts-6-blueviolet?style=flat-square" alt="cmuxO mentor scripts 6">
   <img src="https://img.shields.io/badge/cmuxO%20arch%20docs-22-informational?style=flat-square" alt="cmuxO architecture docs 22">
   <img src="https://img.shields.io/badge/cmuxO%20memory-ChromaDB-ff6b6b?style=flat-square" alt="cmuxO memory ChromaDB">
@@ -432,6 +432,94 @@ Cooldown: 5 min per target. Cross-workspace nudge blocked (team_lead). All nudge
 
 ---
 
+## Ledger SSOT (Phase 2.3)
+
+An **append-only JSONL event ledger** is now the single source of truth for orchestration state. Replaces previous per-hook ad-hoc files.
+
+```
+runtime/ledger/boss-ledger-YYYY-MM-DD.jsonl
+  line 0: {"type":"SCHEMA","version":1}
+  line N: {"type":"ASSIGN","ts":...,"worker":"...","task":"..."}
+  line N: {"type":"VERIFY_PASS","ts":...,"worker":"...","evidence":"flag mtime"}
+```
+
+### Event types (14)
+
+| Category | Types |
+|----------|-------|
+| Schema | `SCHEMA` |
+| Dispatch | `ASSIGN`, `ASSIGN_SKIP`, `CLEAR` |
+| Completion | `REPORT_DONE_CLAIMED`, `VERIFY_PASS`, `VERIFY_FAIL` |
+| Peer | `PEER_SENT`, `PEER_SEND_FAILED`, `PEER_PAYLOAD_DENIED`, `ROLE_PEER_BIND` |
+| Alerts | `RATE_LIMIT_DETECTED`, `ALERT_RAISED`, `HOOK_BLOCK` |
+
+### Integrity guarantees
+
+| Property | Mechanism |
+|----------|-----------|
+| Atomic append | `fcntl.flock(LOCK_EX)` + `O_APPEND` + `fsync()` |
+| Line cap | 4000 bytes per JSON line (excerpt truncation) |
+| Rotation | Daily file, gzip at 30d, delete at 90d |
+| Wiring | `cmux-dispatch-notify.sh` (ASSIGN/CLEAR), `cmux-completion-verifier.py` (VERIFY_*), `cmux-main-context.sh` (context injection ≤6KB) |
+
+### CLI
+
+```bash
+bash cmux-orchestrator/scripts/cmux-ledger.sh tail 20
+python3 cmux-orchestrator/scripts/ledger.py query --type VERIFY_FAIL --since-ts $(date -v-1d +%s)
+python3 cmux-orchestrator/scripts/ledger.py context   # emits stdout for hook injection
+```
+
+---
+
+## Anti-Rationalization Tables (Phase 2.4)
+
+A dedicated pattern classifier detects "aspirational claims without evidence" — *"probably works"*, *"I verified it (privately)"*, *"environment issue, moving on"* — and **asks** for proof (ASK, not DENY — preserves worker autonomy).
+
+Decoupled from the L0 commit-gate to keep blast-radius contained.
+
+### Pattern tables
+
+| Table | Category | Examples |
+|-------|----------|----------|
+| **A** | Aspirational / speculative | "probably", "should work", "looks fine" |
+| **B** | Verification skip | "tests pass locally", "I ran it", "no need to check" |
+| **C** | Environment scapegoat | "environment issue", "flaky CI", "works on my machine" |
+
+### ASK vs DENY
+
+```
+Worker claim  ──> classify(text, worker=...)
+                      │
+                      ├─ PASS conditions (any one):
+                      │   • evidence marker in-text ("test N/N", VERIFY_PASS ref, ...)
+                      │   • override reason provided explicitly
+                      │   • env issue + specific binary/env var/permission
+                      │   • ledger VERIFY_PASS within last 10 min (worker-scoped)
+                      │
+                      └─ ASK — user prompted for confirmation, worker not blocked
+```
+
+### Monthly report
+
+`scripts/jarvis-anti-rationalization-report.py` aggregates the last 30 days of ledger events (`PEER_SEND_FAILED`, `PEER_PAYLOAD_DENIED`, `VERIFY_FAIL`, `ALERT_RAISED`, `RATE_LIMIT_DETECTED`) and atomically rewrites the AUTO block of `references/anti-rationalization.md`. Jarvis scheduler fires it on `0 0 1 * *` (monthly).
+
+```bash
+python3 cmux-orchestrator/scripts/jarvis-anti-rationalization-report.py --days 30 --print
+```
+
+---
+
+## Role Peer Binding
+
+Boss / Watcher / Peer sessions now register their **logical name** (`boss@<surface_id_8>`, etc.) to the MCP `claude-peers` broker at startup, so other AIs can message them by stable name even after peer-ID rotation.
+
+- `scripts/cmux-role-exec.sh {boss|watcher|peer}` — sets `CLAUDE_PEERS_NAME_PREFIX=<role>` **before** exec'ing the Claude binary (env must exist pre-launch; cannot be injected retroactively).
+- `scripts/role-register.sh register <role> [peer_id]` — persists `{peer_id, name_prefix, surface, workspace}` to `/tmp/cmux-roles.json` and emits `ROLE_PEER_BIND` ledger event.
+- Broker resolve fallback: if `peer_id` is omitted, looks up via `peer_channel.py resolve <prefix>`.
+
+---
+
 ## Performance Indicators
 
 ### Orchestration Efficiency
@@ -465,10 +553,17 @@ With monitoring:    ========== 18 min  (1 min overhead for 4-layer scan)
   test_nudge             ████████████████████████ 18 tests  Nudge L1 + cooldown + authority + redaction
   test_mentor_report     ████████████      6 tests   Report generation
   test_failure_class.    ██████████████    7 tests   Failure classification
-  test_watcher_scan      ████████          4 tests   Watcher regression (path/timeout/pipe-pane)
+  test_watcher_scan      ██████████████    7 tests   Watcher regression (path/timeout/pipe-pane)
+  test_skill_md_struct   ████████          4 tests   SKILL.md structural integrity
   ─────────────────────────────────────────────────
-  Total                                   83 tests  ALL PASSED
+  Total                                   90 tests  ALL PASSED
 ```
+
+Integration simulations (Phase 2.3/2.4, not counted in unit total above):
+
+- `test_anti_rationalization.py` — 14/14 PASS (pattern A/B/C + evidence markers)
+- `test_antirat_report.py` — 5/5 PASS (ledger aggregation + AUTO block rewrite)
+- `test_role_register.py` — 4/4 PASS (peer_id + name_prefix + ROLE_PEER_BIND emit)
 
 ### Codebase Scale
 
@@ -522,7 +617,7 @@ The installer automatically:
 ## Project Structure
 
 ```
-cmuxO/                                   216 files
+cmuxO/
 |
 |-- install.sh                             One-command installer
 |-- README.md
@@ -530,12 +625,13 @@ cmuxO/                                   216 files
 |-- cmux-orchestrator/                     cmuxO Boss Core (orchestration)
 |   |-- SKILL.md                           Orchestration directives
 |   |-- activation-hook.sh                 Auto-registration on skill load
-|   |-- hooks/                (22)         Workflow enforcement hooks
-|   |-- scripts/              (37)         eagle, dispatcher, compat, validators
-|   |-- references/           (16)         Architecture + gate docs
-|   |-- agents/               (3)          cmux-reviewer, cmux-git, cmux-security
-|   |-- commands/             (2)          Command definitions
-|   +-- config/               (2)          ai-profile.json, orchestra-config.json
+|   |-- hooks/                             Workflow enforcement hooks
+|   |-- scripts/              (49)         eagle, dispatcher, ledger, anti-rationalization,
+|   |                                      peer_channel, role-register, cmux-role-exec, ...
+|   |-- references/           (17)         Architecture + gate docs + anti-rationalization
+|   |-- agents/                            cmux-reviewer, cmux-git, cmux-security
+|   |-- commands/                          Command definitions (incl. cmux-check, cmux-metrics)
+|   +-- config/                            ai-profile.json, orchestra-config.json
 |
 |-- cmux-watcher/                          cmuxO Watcher Engine (real-time monitoring)
 |   |-- SKILL.md
@@ -546,12 +642,12 @@ cmuxO/                                   216 files
 |
 |-- cmux-jarvis/                           cmuxO JARVIS Core (evolution + mentor intelligence)
 |   |-- SKILL.md
-|   |-- hooks/                (6)          GATE, FileChanged, Compact
-|   |-- scripts/              (21)         Evolution, verify, mentor signal/memory/
-|   |   |                                  report/nudge/classifier/redactor
-|   |-- references/           (7)          Iron laws, red flags, metrics
-|   |-- agents/               (1)          evolution-worker
-|   +-- skills/               (2)          Evolution, visualization sub-skills
+|   |-- hooks/                             GATE, FileChanged, Compact
+|   |-- scripts/              (24)         Evolution, scheduler, verify, mentor signal/memory/
+|   |   |                                  report/nudge/classifier/redactor/anti-rat-report
+|   |-- references/                        Iron laws, red flags, metrics
+|   |-- agents/                            evolution-worker
+|   +-- skills/                            Evolution, visualization sub-skills
 |
 |-- cmux-start/                            /cmux-start
 |-- cmux-stop/                             /cmux-stop
@@ -562,14 +658,16 @@ cmuxO/                                   216 files
 |
 |-- docs/                                  Design documents (SSOT/SRP structured)
 |   |-- 00-overview.md                     Project docs navigation hub
-|   |-- 01-architecture/      (9)          System, orchestrator, watcher, hooks, security
-|   |-- 02-jarvis/            (12)         JARVIS evolution + mentor lane
-|   |-- 03-operations/        (4)          Quick start, AI profiles, troubleshooting
-|   |-- 04-development/       (4)          Phase roadmap, tests, directory structure
-|   |-- 05-research/          (3)          Repo survey, Claude source findings
-|   |-- 99-archive/           (14)         Deprecated docs preserved
+|   |-- 01-architecture/      (10)         System, orchestrator, watcher, hooks, security
+|   |-- 02-jarvis/                         JARVIS evolution + mentor lane
+|   |-- 03-operations/                     Quick start, AI profiles, troubleshooting
+|   |-- 04-development/                    Phase roadmap, tests, directory structure
+|   |-- 05-research/                       Repo survey, Claude source findings
+|   |-- 99-archive/                        Deprecated docs preserved
 |   +-- CHANGELOG.md                       Full version history
-+-- tests/                    (10)         83 unit tests (ChromaDB-based)
+|
+|-- plans/                                 Phase upgrade plans (1.x → 3.x) + verification reports
++-- tests/                    (11)         90 unit tests (ChromaDB-based)
 ```
 
 ---
