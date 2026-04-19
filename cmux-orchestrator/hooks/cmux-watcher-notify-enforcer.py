@@ -21,24 +21,10 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import write_json_atomic, is_boss_surface
+from hook_output import deny_pretool as deny, warn
 
 PENDING_FILE = "/tmp/cmux-dispatch-pending.json"
 SURFACE_MAP_FILE = "/tmp/cmux-surface-map.json"
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
-
-
-def warn(message: str) -> None:
-    """통과하되 systemMessage로 경고 표시."""
-    print(json.dumps({"systemMessage": message}, ensure_ascii=False))
 
 
 def load_surface_map():

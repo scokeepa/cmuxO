@@ -25,17 +25,10 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+from hook_output import deny_pretool as deny
+
 SURFACE_MAP_FILE = "/tmp/cmux-surface-map.json"
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
 
 
 def load_surface_map():

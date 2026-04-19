@@ -19,6 +19,9 @@ import re
 import sys
 import glob
 
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+from hook_output import deny_pretool as deny
+
 PLANS_DIR = os.path.expanduser("~/.claude/plans")
 
 # ── 5관점 순환검증: 섹션 헤더 패턴 ──
@@ -41,16 +44,6 @@ FAIL_VERDICT = re.compile(r"\bFAIL\b")
 TC_PATTERN = re.compile(r"\bTC\d+|테스트케이스|\| TC \||\| 시나리오 \|")
 
 MIN_SECTION_LENGTH = 30
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
 
 
 def _extract_section_content(content, header_match):

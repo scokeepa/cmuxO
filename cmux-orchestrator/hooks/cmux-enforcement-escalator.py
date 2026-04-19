@@ -22,19 +22,11 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import write_json_atomic
+from hook_output import inject_posttool_context as inject_context
 
 TRACKER_FILE = "/tmp/cmux-violation-tracker.json"
 EXPIRY_HOURS = 72
 ESCALATION_THRESHOLD = 3  # 3회 위반 시 에스컬레이션
-
-
-def inject_context(message: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PostToolUse",
-            "additionalContext": message,
-        }
-    }, ensure_ascii=False))
 
 
 def load_tracker():

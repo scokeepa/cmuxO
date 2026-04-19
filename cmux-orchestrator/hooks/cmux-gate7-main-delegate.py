@@ -20,6 +20,7 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import load_json_safe, is_boss_surface
+from hook_output import deny_pretool as deny
 
 # 차단 대상 도구
 BLOCKED_TOOLS = {"Read", "Edit", "Grep", "Glob", "Write"}
@@ -29,16 +30,6 @@ ALLOWED_READ_PREFIXES = (
     "/tmp/cmux-",
     "/tmp/cmux_",
 )
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
 
 
 def get_idle_worker_surfaces():

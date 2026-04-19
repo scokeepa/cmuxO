@@ -13,21 +13,14 @@ import re
 import shlex
 import sys
 
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+from hook_output import deny_pretool as deny
+
 ROLES_FILE = "/tmp/cmux-roles.json"
 COMMAND_BOUNDARIES = {"&&", "||", "|", ";", "(", ")"}
 COMMAND_PREFIX_KEYWORDS = {"!", "if", "then", "elif", "else", "do", "while", "until", "time"}
 COMMAND_WRAPPERS = {"builtin", "command", "exec", "sudo"}
 COMMAND_PREFIX_TOKENS = COMMAND_PREFIX_KEYWORDS | COMMAND_WRAPPERS
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
 
 
 def is_close_workspace_command(command: str) -> bool:

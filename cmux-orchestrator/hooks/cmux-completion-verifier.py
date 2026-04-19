@@ -21,20 +21,11 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
 from cmux_utils import is_boss_surface
+from hook_output import deny_pretool as deny
 from leceipts_validator import is_git_commit
 
 VERIFY_FLAG = "/tmp/cmux-verification-passed"
 MAX_AGE = 300  # 5분 이내 검증만 유효
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
 
 
 def main():

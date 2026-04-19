@@ -17,17 +17,8 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.expanduser("~/.claude/skills/cmux-orchestrator/scripts"))
+from hook_output import deny_pretool as deny
 from leceipts_validator import is_git_commit
-
-
-def deny(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }, ensure_ascii=False))
 
 
 def _get_staged_diff_hash():
